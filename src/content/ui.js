@@ -387,6 +387,9 @@
 			const overlay = document.createElement('div');
 			overlay.className = 'cc-settings-overlay cc-dashboard-overlay';
 			
+			const { fillColor } = this.getProgressChrome();
+			overlay.style.setProperty('--cc-fill', fillColor);
+			
 			// Process history for chart (last 7 days)
 			const days = {};
 			const now = Date.now();
