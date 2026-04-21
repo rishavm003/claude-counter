@@ -202,6 +202,7 @@
 			this._initUsageLine();
 			this._observeDom();
 			this._observeTheme();
+			this.refreshProgressChrome();
 		}
 
 		_observeTheme() {
@@ -386,6 +387,9 @@
 			const overlay = document.createElement('div');
 			overlay.className = 'cc-settings-overlay cc-dashboard-overlay';
 			
+			const { fillColor } = this.getProgressChrome();
+			overlay.style.setProperty('--cc-fill', fillColor);
+			
 			// Process history for chart (last 7 days)
 			const days = {};
 			const now = Date.now();
@@ -420,7 +424,38 @@
 					</div>
 				</div>
 				<button id="cc-dash-close" style="width:100%; margin-top:20px; padding:10px; border-radius:8px; background:var(--cc-fill); color:white; border:none; cursor:pointer;">Close</button>
+				<div style="display:flex; gap:10px; margin-top:10px">
+					<button id="cc-export-json" style="flex:1; padding:6px; font-size:10px; background:rgba(255,255,255,0.1); color:white; border:none; border-radius:4px; cursor:pointer">Export JSON</button>
+					<button id="cc-export-csv" style="flex:1; padding:6px; font-size:10px; background:rgba(255,255,255,0.1); color:white; border:none; border-radius:4px; cursor:pointer">Export CSV</button>
+				</div>
 			`;
+
+			const downloadFile = (content, filename, type) => {
+				const blob = new Blob([content], { type });
+				const url = URL.createObjectURL(blob);
+				const a = document.createElement('a');
+				a.href = url;
+				a.download = filename;
+				a.click();
+				URL.revokeObjectURL(url);
+			};
+
+			overlay.querySelector('#cc-export-json').onclick = () => {
+				downloadFile(JSON.stringify(history, null, 2), `claude_usage_${Date.now()}.json`, 'application/json');
+			};
+
+			overlay.querySelector('#cc-export-csv').onclick = () => {
+				const headers = ['timestamp', 'text_tokens', 'attachment_tokens', 'tool_tokens', 'total'];
+				const rows = history.map(h => [
+					new Date(h.ts).toISOString(),
+					h.text || 0,
+					h.attachments || 0,
+					h.tools || 0,
+					(h.text || 0) + (h.attachments || 0) + (h.tools || 0)
+				]);
+				const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+				downloadFile(csv, `claude_usage_${Date.now()}.csv`, 'text/csv');
+			};
 
 			const close = () => {
 				document.body.removeChild(backdrop);
@@ -447,6 +482,10 @@
 					<span>Show Latency/Speed</span>
 					<input type="checkbox" id="cc-set-latency" ${this.settings.showLatency ? 'checked' : ''}>
 				</div>
+				<div class="cc-settings-field">
+					<span>Context Limit (Tokens)</span>
+					<input type="number" id="cc-set-limit" style="width:80px; background:rgba(255,255,255,0.05); color:white; border:1px solid var(--cc-stroke); border-radius:4px; padding:2px 4px; font-size:11px" value="${this.settings.manualLimit || this._detectContextLimit()}">
+				</div>
 				<button id="cc-set-close" style="width:100%; margin-top:15px; padding:8px; border-radius:6px; background:var(--cc-fill); color:white; border:none; cursor:pointer;">Close</button>
 			`;
 
@@ -462,6 +501,10 @@
 					this.onSettingsChange({ [`show${key.charAt(0).toUpperCase() + key.slice(1)}`]: e.target.checked });
 				};
 			});
+
+			overlay.querySelector('#cc-set-limit').onchange = (e) => {
+				this.onSettingsChange({ manualLimit: parseInt(e.target.value) || 0 });
+			};
 
 			document.body.appendChild(backdrop);
 			document.body.appendChild(overlay);
@@ -517,7 +560,8 @@
 				return;
 			}
 
-			const pct = Math.max(0, Math.min(100, (totalTokens / CC.CONST.CONTEXT_LIMIT_TOKENS) * 100));
+			const limit = this.settings.manualLimit || this._detectContextLimit();
+			const pct = Math.max(0, Math.min(100, (totalTokens / limit) * 100));
 			this.lengthDisplay.innerHTML = `~${totalTokens.toLocaleString()} tokens <span style="opacity:0.5; font-size:9px">ⓘ</span>`;
 
 			// Mini bar
@@ -596,6 +640,15 @@
 				this.weeklyBarFill.classList.toggle('cc-warn', rawPct >= 90);
 			}
 			this._updateMarkers();
+		}
+
+		_detectContextLimit() {
+			const modelBtn = document.querySelector(CC.DOM.MODEL_SELECTOR_DROPDOWN);
+			const modelName = modelBtn?.textContent?.trim() || '';
+			for (const [name, limit] of Object.entries(CC.CONST.MODEL_CONTEXT_MAP)) {
+				if (modelName.includes(name)) return limit;
+			}
+			return CC.CONST.DEFAULT_CONTEXT_LIMIT;
 		}
 
 		_updateMarkers() {
