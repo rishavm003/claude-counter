@@ -12,7 +12,16 @@
 
 	CC.CONST = Object.freeze({
 		CACHE_WINDOW_MS: 5 * 60 * 1000,
-		CONTEXT_LIMIT_TOKENS: 200000
+		DEFAULT_CONTEXT_LIMIT: 200000,
+		MODEL_CONTEXT_MAP: {
+			'Claude 3.5 Sonnet': 200000,
+			'Claude 3.5 Haiku': 200000,
+			'Claude 3 Opus': 200000,
+			'Claude 3 Sonnet': 200000,
+			'Claude 3 Haiku': 200000,
+			'Claude 2.1': 200000,
+			'Claude 2.0': 100000
+		}
 	});
 
 	CC.COLORS = Object.freeze({
