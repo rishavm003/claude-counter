@@ -29,8 +29,9 @@
 		const url = toAbsoluteUrl(args[0]);
 		const opts = args[1] || {};
 
-		// Detect generation start (completion requests)
-		if (url && opts.method === 'POST' && (url.includes('/completion') || url.includes('/retry_completion'))) {
+		// Detect generation start (completion requests and message appends)
+		const isCompletion = url.includes('/completion') || url.includes('/retry_completion') || url.includes('/append_message');
+		if (url && opts.method === 'POST' && isCompletion) {
 			generationStartTime = Date.now();
 			ttftEmitted = false;
 			post('cc:generation_start', { startTime: generationStartTime });
