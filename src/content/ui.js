@@ -414,7 +414,38 @@
 					</div>
 				</div>
 				<button id="cc-dash-close" style="width:100%; margin-top:20px; padding:10px; border-radius:8px; background:var(--cc-fill); color:white; border:none; cursor:pointer;">Close</button>
+				<div style="display:flex; gap:10px; margin-top:10px">
+					<button id="cc-export-json" style="flex:1; padding:6px; font-size:10px; background:rgba(255,255,255,0.1); color:white; border:none; border-radius:4px; cursor:pointer">Export JSON</button>
+					<button id="cc-export-csv" style="flex:1; padding:6px; font-size:10px; background:rgba(255,255,255,0.1); color:white; border:none; border-radius:4px; cursor:pointer">Export CSV</button>
+				</div>
 			`;
+
+			const downloadFile = (content, filename, type) => {
+				const blob = new Blob([content], { type });
+				const url = URL.createObjectURL(blob);
+				const a = document.createElement('a');
+				a.href = url;
+				a.download = filename;
+				a.click();
+				URL.revokeObjectURL(url);
+			};
+
+			overlay.querySelector('#cc-export-json').onclick = () => {
+				downloadFile(JSON.stringify(history, null, 2), `claude_usage_${Date.now()}.json`, 'application/json');
+			};
+
+			overlay.querySelector('#cc-export-csv').onclick = () => {
+				const headers = ['timestamp', 'text_tokens', 'attachment_tokens', 'tool_tokens', 'total'];
+				const rows = history.map(h => [
+					new Date(h.ts).toISOString(),
+					h.text || 0,
+					h.attachments || 0,
+					h.tools || 0,
+					(h.text || 0) + (h.attachments || 0) + (h.tools || 0)
+				]);
+				const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+				downloadFile(csv, `claude_usage_${Date.now()}.csv`, 'text/csv');
+			};
 
 			const close = () => {
 				document.body.removeChild(backdrop);
