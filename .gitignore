@@ -1,0 +1,19 @@
+# OS Junk
+.DS_Store
+Thumbs.db
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Extension Artifacts
+*.crx
+*.pem
+
+# Gemini/Antigravity Artifacts
+.gemini
+TECHNICAL_DOCUMENTATION.md.tmp
+walkthrough.md
+task.md
+implementation_plan.md
