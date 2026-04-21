@@ -135,9 +135,15 @@
 
 		applySettings(settings) {
 			this.settings = { ...this.settings, ...settings };
+			this.setVisibility(!this.settings.userHidden);
 			this._renderHeader();
 			this.refreshProgressChrome();
 			if (this.metrics) this.injectBadges(this.metrics.perMessageTokens);
+		}
+
+		setVisibility(isVisible) {
+			if (this.headerContainer) this.headerContainer.classList.toggle('cc-user-hidden', !isVisible);
+			if (this.usageLine) this.usageLine.classList.toggle('cc-user-hidden', !isVisible);
 		}
 
 		getProgressChrome() {

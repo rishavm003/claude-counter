@@ -57,6 +57,14 @@
       ]
     }
   ],
+  "commands": {
+    "toggle-overlay": {
+      "suggested_key": {
+        "default": "Alt+Shift+C"
+      },
+      "description": "Toggle the visibility of the token counter overlay"
+    }
+  },
   "web_accessible_resources": [
     {
       "resources": [
