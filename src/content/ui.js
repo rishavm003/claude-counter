@@ -196,6 +196,7 @@
 			this._initUsageLine();
 			this._observeDom();
 			this._observeTheme();
+			this.refreshProgressChrome();
 		}
 
 		_observeTheme() {
