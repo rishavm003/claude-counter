@@ -134,8 +134,17 @@
 		colors: {},
 		showBreakdown: true,
 		showLatency: true,
-		showBadges: true
+		showBadges: true,
+		userHidden: false
 	};
+
+	chrome.runtime.onMessage.addListener((message) => {
+		if (message.type === 'cc:toggle_visibility') {
+			settings.userHidden = !settings.userHidden;
+			chrome.storage.local.set({ settings });
+			ui.applySettings(settings);
+		}
+	});
 
 	const ui = new CC.ui.CounterUI({
 		onUsageRefresh: async () => {

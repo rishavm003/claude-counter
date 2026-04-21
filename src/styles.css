@@ -314,3 +314,8 @@
 .cc-hidden {
 	display: none !important;
 }
+
+/* User-triggered visibility toggle */
+.cc-user-hidden {
+	display: none !important;
+}
