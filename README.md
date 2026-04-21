@@ -2,8 +2,6 @@
 
 A minimal browser extension that shows token count, cache timer, and usage bars on claude.ai.
 
-![Claude Counter screenshot](./screenshot.png)
-
 ## Features
 
 - **Token count** — Approximate token count for the current conversation, with a mini progress bar against the 200k context limit
