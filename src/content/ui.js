@@ -441,6 +441,10 @@
 					<span>Show Latency/Speed</span>
 					<input type="checkbox" id="cc-set-latency" ${this.settings.showLatency ? 'checked' : ''}>
 				</div>
+				<div class="cc-settings-field">
+					<span>Context Limit (Tokens)</span>
+					<input type="number" id="cc-set-limit" style="width:80px; background:rgba(255,255,255,0.05); color:white; border:1px solid var(--cc-stroke); border-radius:4px; padding:2px 4px; font-size:11px" value="${this.settings.manualLimit || this._detectContextLimit()}">
+				</div>
 				<button id="cc-set-close" style="width:100%; margin-top:15px; padding:8px; border-radius:6px; background:var(--cc-fill); color:white; border:none; cursor:pointer;">Close</button>
 			`;
 
@@ -456,6 +460,10 @@
 					this.onSettingsChange({ [`show${key.charAt(0).toUpperCase() + key.slice(1)}`]: e.target.checked });
 				};
 			});
+
+			overlay.querySelector('#cc-set-limit').onchange = (e) => {
+				this.onSettingsChange({ manualLimit: parseInt(e.target.value) || 0 });
+			};
 
 			document.body.appendChild(backdrop);
 			document.body.appendChild(overlay);
@@ -511,7 +519,8 @@
 				return;
 			}
 
-			const pct = Math.max(0, Math.min(100, (totalTokens / CC.CONST.CONTEXT_LIMIT_TOKENS) * 100));
+			const limit = this.settings.manualLimit || this._detectContextLimit();
+			const pct = Math.max(0, Math.min(100, (totalTokens / limit) * 100));
 			this.lengthDisplay.innerHTML = `~${totalTokens.toLocaleString()} tokens <span style="opacity:0.5; font-size:9px">ⓘ</span>`;
 
 			// Mini bar
@@ -590,6 +599,15 @@
 				this.weeklyBarFill.classList.toggle('cc-warn', rawPct >= 90);
 			}
 			this._updateMarkers();
+		}
+
+		_detectContextLimit() {
+			const modelBtn = document.querySelector(CC.DOM.MODEL_SELECTOR_DROPDOWN);
+			const modelName = modelBtn?.textContent?.trim() || '';
+			for (const [name, limit] of Object.entries(CC.CONST.MODEL_CONTEXT_MAP)) {
+				if (modelName.includes(name)) return limit;
+			}
+			return CC.CONST.DEFAULT_CONTEXT_LIMIT;
 		}
 
 		_updateMarkers() {
