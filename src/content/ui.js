@@ -515,6 +515,7 @@
 				document.querySelectorAll('.cc-message-badge').forEach(b => b.remove());
 				return;
 			}
+			if (!perMessageTokens) return;
 			for (const [uuid, tokens] of Object.entries(perMessageTokens)) {
 				const bubble = document.querySelector(`[data-message-id="${uuid}"], [data-testid="message-wrapper-${uuid}"]`);
 				if (bubble && !bubble.querySelector('.cc-message-badge')) {
