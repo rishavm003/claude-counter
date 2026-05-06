@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claude Counter - Technical Documentation</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* Design System / Color Palette */
+            --bg-color: #0f1115;
+            --surface-color: #1a1d24;
+            --surface-color-hover: #232730;
+            --text-main: #e2e8f0;
+            --text-muted: #94a3b8;
+            --text-accent: #38bdf8;
+            --border-color: #334155;
+            
+            --primary: #0ea5e9;
+            --primary-hover: #0284c7;
+            
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            
+            --font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            --transition: all 0.2s ease-in-out;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: var(--font-family);
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        header {
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 24px;
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            color: var(--text-main);
+            margin: 0 0 16px 0;
+            letter-spacing: -0.02em;
+        }
+
+        h2 {
+            font-size: 1.75rem;
+            color: var(--text-accent);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 12px;
+            margin: 48px 0 24px 0;
+        }
+
+        h3 {
+            font-size: 1.25rem;
+            color: var(--text-main);
+            margin: 32px 0 16px 0;
+        }
+
+        p {
+            color: var(--text-muted);
+            margin-bottom: 16px;
+        }
+
+        .subtitle {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+            margin: 0;
+        }
+
+        /* Module Cards */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
+            margin: 32px 0;
+        }
+
+        .card {
+            background-color: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 24px;
+            transition: var(--transition);
+        }
+
+        .card:hover {
+            border-color: var(--primary);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .card h4 {
+            color: var(--text-main);
+            font-size: 1.1rem;
+            margin: 0 0 12px 0;
+            display: flex;
+            align-items: center;
+        }
+
+        .card h4 code {
+            font-size: 0.9rem;
+            background: rgba(14, 165, 233, 0.1);
+            color: var(--primary);
+            padding: 4px 8px;
+            border-radius: 6px;
+        }
+
+        .card p {
+            font-size: 0.95rem;
+            margin: 0;
+        }
+
+        /* Architecture Diagram (CSS based) */
+        .arch-diagram {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            background: var(--surface-color);
+            padding: 32px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+        }
+
+        .arch-row {
+            display: flex;
+            justify-content: center;
+            gap: 32px;
+        }
+
+        .arch-box {
+            background: rgba(14, 165, 233, 0.1);
+            border: 1px solid var(--primary);
+            color: var(--text-main);
+            padding: 16px 32px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: 500;
+            min-width: 150px;
+        }
+        
+        .arch-box.secondary {
+            background: rgba(245, 158, 11, 0.1);
+            border-color: var(--warning);
+        }
+
+        .arch-box.tertiary {
+            background: rgba(34, 197, 94, 0.1);
+            border-color: var(--success);
+        }
+
+        .arch-arrow {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            font-size: 1.5rem;
+        }
+
+        .arch-arrow-vert {
+            text-align: center;
+            color: var(--text-muted);
+            line-height: 1;
+            font-size: 1.5rem;
+        }
+
+        /* Code snippets */
+        pre {
+            background-color: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 16px;
+            overflow-x: auto;
+            margin: 24px 0;
+        }
+
+        code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.9em;
+            color: var(--text-accent);
+        }
+
+        ul {
+            color: var(--text-muted);
+            padding-left: 20px;
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        li strong {
+            color: var(--text-main);
+        }
+
+        .badge {
+            display: inline-block;
+            background: var(--surface-color);
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
+            padding: 4px 10px;
+            border-radius: 20px;
+            margin-right: 8px;
+            margin-bottom: 24px;
+        }
+
+        footer {
+            margin-top: 64px;
+            padding-top: 24px;
+            border-top: 1px solid var(--border-color);
+            text-align: center;
+            color: var(--border-color);
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <span class="badge">Technical Documentation</span>
+            <h1>Claude Counter Architecture</h1>
+            <p class="subtitle">An overview of the execution flow, inter-script communication, and token tracking architecture.</p>
+        </header>
+
+        <section id="overview">
+            <h2>1. Project Overview</h2>
+            <p><strong>Claude Counter</strong> is a browser extension designed to monitor and visualize token usage limits and contextual limits on Claude.ai.</p>
+            <p>Because Claude's frontend interacts heavily via React and fetches data primarily through Server-Sent Events (SSE) and XHR that don't emit native events easily interceptable by traditional content scripts, this extension implements a dual-layer approach. It injects code directly into the webpage's context to hook into network requests and push those events back to a securely isolated extension content script for tracking.</p>
+        </section>
+
+        <section id="architecture">
+            <h2>2. System Architecture</h2>
+            <p>The system comprises three primary execution contexts due to browser security boundaries. Communication between them is orchestrated through event listeners and custom `postMessage` RPC architectures.</p>
+            
+            <div class="arch-diagram">
+                <div class="arch-row">
+                    <div class="arch-box">Claude.ai Webpage context</div>
+                </div>
+                <div class="arch-arrow-vert">↓ ↑</div>
+                <div class="arch-row">
+                    <div class="arch-box secondary">Injected Script (bridge.js)</div>
+                </div>
+                <div class="arch-arrow-vert">postMessage ("ClaudeCounter")</div>
+                <div class="arch-row">
+                    <div class="arch-box tertiary">Content Script (Isolated World)</div>
+                    <div class="arch-arrow">↔</div>
+                    <div class="arch-box tertiary">Background Worker</div>
+                </div>
+            </div>
+        </section>
+
+        <section id="core-modules">
+            <h2>3. Core Modules Breakdown</h2>
+            
+            <div class="grid">
+                <div class="card">
+                    <h4><code>src/content/main.js</code></h4>
+                    <p>The core orchestrator. Bootstraps the application, hooks up `ui.js` listeners, injects the bridge, processes usage and SSE data limits, and handles URL navigation events using `MutationObserver` to ensure elements exist.</p>
+                </div>
+                <div class="card">
+                    <h4><code>src/content/ui.js</code></h4>
+                    <p>Handles dynamic DOM manipulation and charting. Creates the header toolbars, settings overlay widgets, token percentage mini-bars, and message badges. Contains robust fallback logic for re-attaching UI elements when the React DOM aggressively resets.</p>
+                </div>
+                <div class="card">
+                    <h4><code>src/content/tokens.js</code></h4>
+                    <p>Handles evaluating conversation histories. Uses the loaded OpenAI/Anthropic tokenizers (`o200k_base.js`) locally to measure payload size and calculate specific breakdowns of tool use vs exact input strings in the current context.</p>
+                </div>
+                <div class="card">
+                    <h4><code>src/content/bridge-client.js</code></h4>
+                    <p>A structured Promise-based RPC client inside the locked-down content world. Issues deterministic requests (like fetching a specific conversation history tree) to `bridge.js` while maintaining a pending queue with timeouts.</p>
+                </div>
+                <div class="card">
+                    <h4><code>src/injected/bridge.js</code></h4>
+                    <p>Runs directly within the Claude.ai global object (`window`). It wraps `window.fetch`, `history.pushState`, and `history.replaceState`. This captures raw Event Streams for LLM generations directly observing Time-To-First-Token (TTFT) and data packets before React swallows them.</p>
+                </div>
+                <div class="card">
+                    <h4><code>src/background.js</code></h4>
+                    <p>A minimal Service Worker. Responsible only for dispatching system-level push notifications to the OS using `chrome.notifications` when a usage threshold (like 80% or 95%) is breached, and handling keyboard shortcuts.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="data-flow">
+            <h2>4. Network & Data Pipeline</h2>
+            <p>The magic of the application lies in how it transparently captures conversational API payloads directly from memory rather than polling the DOM, preventing performance bottlenecks.</p>
+            
+            <ul>
+                <li><strong>Network Interception:</strong> `bridge.js` monkey-patches `window.fetch`. When a POST to `/completion` originates, it fires a `cc:generation_start` event to signal to the UI that a request is pending.</li>
+                <li><strong>Stream Buffering:</strong> The fetch hook clones the response body and attaches a `TextDecoder` to iterate over the `event-stream` chunks asynchronously, specifically listening for `message_limit` updates without interrupting the actual website's frontend.</li>
+                <li><strong>Communication:</strong> Events and parsed JSON are dispatched back through `window.postMessage({ cc: 'ClaudeCounter', type, payload }, '*')`.</li>
+                <li><strong>Processing:</strong> `bridge-client.js` inside the Content Script securely ingests this, filtering out anything untouched by the CC_MARKER. The data is passed to `main.js`, evaluated for tokens using `tokens.js` (including pruning the conversational tree trunk down to the exact thread branch), and the changes are applied natively via `ui.js`.</li>
+            </ul>
+        </section>
+
+        <section id="ui-injection">
+            <h2>5. UI Injection Strategies</h2>
+            <p>Modern SPAs tear down and rebuild DOM trees aggressively, making static element injections unreliable. To handle this, `claude-counter` utilizes `MutationObserver` heavily.</p>
+            <pre><code>// main.js - Defensive Element Waiter
+function waitForElement(selector, timeoutMs) {
+    return new Promise((resolve) => {
+        const existing = document.querySelector(selector);
+        if (existing) return resolve(existing);
+
+        const observer = new MutationObserver(() => {
+            const el = document.querySelector(selector);
+            if (el) {
+                observer.disconnect();
+                resolve(el);
+            }
+        });
+        
+        observer.observe(document.body, { childList: true, subtree: true });
+    });
+}</code></pre>
+            <p>Using this logic, the app waits optimally until precisely when React renders the layout anchors (`MODEL_SELECTOR_DROPDOWN` or `CHAT_MENU_TRIGGER`), appending its UI elements adjacently to look indistinguishable from native design components.</p>
+        </section>
+
+        <section id="tools-and-tech">
+            <h2>6. Tools & Technology Stack</h2>
+            <div class="grid">
+                <div class="card">
+                    <h4><code>Vanilla JavaScript (ES6+)</code></h4>
+                    <p>The entire extension logic, UI manipulation, and event handling is built entirely without frontend frameworks like React or Vue to maintain maximum performance and the smallest possible bundle footprint.</p>
+                </div>
+                <div class="card">
+                    <h4><code>Chrome Extension APIs (MV3)</code></h4>
+                    <p>Utilizes Manifest V3 architecture. Includes background service workers (`chrome.runtime`), local storage (`chrome.storage.local`), and native system notifications (`chrome.notifications`).</p>
+                </div>
+                <div class="card">
+                    <h4><code>o200k_base Tokenizer</code></h4>
+                    <p>Local loading of the official tokenizer script (`vendor/o200k_base.js`) ensures identical token measurements to the actual Claude backend natively in the browser without external API calls.</p>
+                </div>
+                <div class="card">
+                    <h4><code>MutationObserver API</code></h4>
+                    <p>Crucial for detecting layout shifts within Claude's React application to orchestrate UI lifecycle hooks when elements inevitably unmount and remount.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="system-design">
+            <h2>7. System Design Walkthrough</h2>
+            <p>The system design revolves around <strong>Non-blocking Payload Intelligence</strong>. Unlike legacy extensions that scrape the DOM—which forces layouts to recalculate and slows down users—this system proxies network calls.</p>
+            
+            <h3>Data Aggregation Pipeline</h3>
+            <ul>
+                <li><strong>Event Generation:</strong> The injected proxy monitors the network buffer and identifies requests to the `/completion` and `/chat_conversations` endpoints natively.</li>
+                <li><strong>Stream Decoupling:</strong> Streams attached to `window.fetch` are safely cloned (`response.clone()`) and piped through a `TextDecoder` that evaluates SSE (`text/event-stream`) streams as they download into the RAM.</li>
+                <li><strong>Tokenization Offload:</strong> Context counting natively supports "trunk pruning" (navigating structural parents up to ROOT IDs) so that branching conversations don't exponentially compound memory buffers. Tokens are physically counted on the client device saving infrastructure costs.</li>
+            </ul>
+        </section>
+
+        <section id="technical-challenges">
+            <h2>8. Engineering Challenges & Solutions</h2>
+            <div class="arch-diagram">
+                <div class="arch-row" style="flex-direction: column; gap: 20px;">
+                    <div style="background: rgba(239, 68, 68, 0.1); border-left: 4px solid var(--danger); padding: 16px;">
+                        <strong>Challenge: Escaping the Chrome Extension Sandbox</strong><br>
+                        <span style="color: var(--text-muted); font-size: 0.95em;">Standard Content Scripts in Manifest V3 are executed in "Isolated Worlds". They share the DOM with the host page but CANNOT read the JavaScript variables or see native `window` properties on the webpage. Hooking `window.fetch` securely is impossible from a content script.</span>
+                    </div>
+                    <div style="background: rgba(34, 197, 94, 0.1); border-left: 4px solid var(--success); padding: 16px;">
+                        <strong>Solution: Injected Script Proxy Pattern</strong><br>
+                        <span style="color: var(--text-muted); font-size: 0.95em;">The app bootstraps by programmatically appending a `<script>` tag pointing to `bridge.js` right into the web page tree. This allows it to run in the target context natively, hook the `fetch` and `history` globals securely, and broadcast data backward into the isolated world using secure `window.postMessage` payloads identified strictly via a specific `CC_MARKER`.</span>
+                    </div>
+                    
+                    <div style="background: rgba(239, 68, 68, 0.1); border-left: 4px solid var(--danger); padding: 16px; margin-top:16px;">
+                        <strong>Challenge: React Frontend Aggression</strong><br>
+                        <span style="color: var(--text-muted); font-size: 0.95em;">Claude uses a complex React architecture. Nodes the extension relies on are frequently nuked entirely whenever a user switches a chat model, swaps tabs, or branches a conversation. Standard `setInterval` polling introduces lag.</span>
+                    </div>
+                    <div style="background: rgba(34, 197, 94, 0.1); border-left: 4px solid var(--success); padding: 16px;">
+                        <strong>Solution: Intelligent Mutation Mapping</strong><br>
+                        <span style="color: var(--text-muted); font-size: 0.95em;">Replaced polling with persistent `MutationObserver` trackers explicitly localized directly to the nearest parent anchors. By listening to the specific target elements mounting patterns, UI redrawing latency was completely eradicated. Branching limits are identified by explicitly watching standard text boundaries ("X / Y").</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <footer>
+            <p>Claude Counter v0.4.2 — Built for performance and reliability</p>
+        </footer>
+    </div>
+
+</body>
+</html>
