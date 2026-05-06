@@ -145,6 +145,44 @@
 		}
 	}
 
+	console.log('[Claude Counter] Bridge script injected and running');
+	// Try to find orgId immediately on load
+	async function discoverOrgId() {
+		try {
+			// 1. Try __NEXT_DATA__
+			const nextData = document.getElementById('__NEXT_DATA__');
+			if (nextData) {
+				const json = JSON.parse(nextData.textContent);
+				const orgId = json?.props?.pageProps?.organizationId || 
+							  json?.query?.orgId || 
+							  json?.props?.pageProps?.account?.id;
+				if (orgId) {
+					window.CC_LAST_ORG_ID = orgId;
+					console.log('[Claude Counter] Detected OrgId from state:', orgId);
+					return orgId;
+				}
+			}
+
+			// 2. Try API fallback
+			console.log('[Claude Counter] OrgId not in state, fetching via API...');
+			const res = await originalFetch('https://claude.ai/api/organizations', { credentials: 'include' });
+			const orgs = await res.json();
+			if (Array.isArray(orgs) && orgs.length > 0) {
+				const orgId = orgs[0].uuid || orgs[0].id;
+				window.CC_LAST_ORG_ID = orgId;
+				console.log('[Claude Counter] Found OrgId via API:', orgId);
+				return orgId;
+			}
+		} catch (e) {
+			console.error('[Claude Counter] OrgId discovery failed:', e);
+		}
+		return null;
+	}
+
+	discoverOrgId().then(id => {
+		if (id) window.dispatchEvent(new CustomEvent('cc:org_ready', { detail: { orgId: id } }));
+	});
+
 	window.addEventListener('message', async (event) => {
 		if (event.source !== window) return;
 		const data = event.data;

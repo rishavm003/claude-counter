@@ -2,12 +2,21 @@
 	'use strict';
 
 	const CC = (globalThis.ClaudeCounter = globalThis.ClaudeCounter || {});
+	console.log('[Claude Counter] Content script loading...');
 	if (CC.__started) return;
 	CC.__started = true;
 
 	function getConversationId() {
 		const match = window.location.pathname.match(/\/chat\/([^/?]+)/);
 		return match ? match[1] : null;
+	}
+
+	function getOrgIdFromUrl() {
+		const pathMatch = window.location.pathname.match(/\/organizations\/([^/]+)/);
+		if (pathMatch) return pathMatch[1];
+		
+		// Fallback: Check for stored orgId (bridge finds it in state)
+		return globalThis.CC_LAST_ORG_ID || null;
 	}
 
 	function getOrgIdFromCookie() {
@@ -73,6 +82,15 @@
 		window.addEventListener('cc:urlchange', fireIfChanged);
 		// Also popstate for back/forward buttons
 		window.addEventListener('popstate', fireIfChanged);
+		
+		// Listen for orgId discovery from bridge
+		window.addEventListener('cc:org_ready', (e) => {
+			if (e.detail?.orgId && e.detail.orgId !== currentOrgId) {
+				console.log('[Claude Counter] OrgId ready event received:', e.detail.orgId);
+				updateOrgIdIfNeeded(e.detail.orgId);
+				refreshUsage();
+			}
+		});
 
 		return () => {
 			window.removeEventListener('cc:urlchange', fireIfChanged);
@@ -214,6 +232,7 @@
 	}
 
 	function applyUsageUpdate(normalized, source) {
+		console.log('[Claude Counter] Usage data received:', normalized, 'from:', source);
 		if (!normalized) return;
 		const now = Date.now();
 		usageState = normalized;
@@ -236,7 +255,7 @@
 
 	async function refreshUsage() {
 		await bridgeReady;
-		const orgId = currentOrgId || getOrgIdFromCookie();
+		const orgId = getOrgIdFromUrl() || currentOrgId || getOrgIdFromCookie();
 		if (!orgId) return;
 		updateOrgIdIfNeeded(orgId);
 
@@ -262,7 +281,7 @@
 			return;
 		}
 
-		const orgId = currentOrgId || getOrgIdFromCookie();
+		const orgId = getOrgIdFromUrl() || currentOrgId || getOrgIdFromCookie();
 		if (!orgId) return;
 		updateOrgIdIfNeeded(orgId);
 
@@ -310,51 +329,58 @@
 	async function handleUrlChange() {
 		currentConversationId = getConversationId();
 
-		// Attach usage line and header independently - they have different anchor elements
-		// and CHAT_MENU_TRIGGER doesn't exist on home/new pages
+		// Attach usage line and header independently
 		waitForElement(CC.DOM.MODEL_SELECTOR_DROPDOWN, 60000).then((el) => {
-			if (el) ui.attachUsageLine();
+			if (el) {
+				console.log('[Claude Counter] Found model selector, attaching usage line');
+				ui.attachUsageLine();
+			} else {
+				console.warn('[Claude Counter] Model selector not found after 60s');
+			}
 		});
 		waitForElement(CC.DOM.CHAT_MENU_TRIGGER, 60000).then((el) => {
-			if (el) ui.attachHeader();
+			if (el) {
+				console.log('[Claude Counter] Found chat menu, attaching header');
+				ui.attachHeader();
+			} else {
+				console.warn('[Claude Counter] Chat menu not found after 60s');
+			}
 		});
 
 		if (!currentConversationId) {
 			ui.setConversationMetrics();
+			// On homepage, still try to fetch usage for the org
+			if (!usageState) refreshUsage();
 			return;
 		}
 
-		// Best-effort orgId from cookie.
-		updateOrgIdIfNeeded(getOrgIdFromCookie());
+		// Best-effort orgId from cookie/url.
+		updateOrgIdIfNeeded(getOrgIdFromUrl() || getOrgIdFromCookie());
 
 		await refreshConversation();
 
-		// Usage is org-level, not conversation-level. Only fetch on first load or if stale.
+		// Usage is org-level, not conversation-level.
 		if (!usageState) await refreshUsage();
 	}
 
 	const unobserveUrl = observeUrlChanges(handleUrlChange);
 	window.addEventListener('beforeunload', unobserveUrl);
 
-	// Refresh on branch navigation - watch for the branch indicator to change
+	// Refresh on branch navigation
 	let branchObserver = null;
 	document.addEventListener('click', (e) => {
 		if (!currentConversationId) return;
 		const btn = e.target.closest('button[aria-label="Previous"], button[aria-label="Next"]');
 		if (!btn) return;
 
-		// Find the branch indicator span (matches "X / Y" pattern) near the clicked button
 		const container = btn.closest('.inline-flex');
 		const spans = container?.querySelectorAll('span') || [];
 		const indicator = Array.from(spans).find((s) => /^\d+\s*\/\s*\d+$/.test(s.textContent.trim()));
 		if (!indicator) return;
 
 		const originalText = indicator.textContent;
-
-		// Clean up any existing observer
 		if (branchObserver) branchObserver.disconnect();
 
-		// Watch for the indicator text to change (with cleanup timeout)
 		branchObserver = new MutationObserver(() => {
 			if (indicator.textContent !== originalText) {
 				branchObserver.disconnect();
@@ -365,7 +391,6 @@
 
 		branchObserver.observe(indicator, { childList: true, characterData: true, subtree: true });
 
-		// Clean up if nothing changes after 60 seconds
 		setTimeout(() => {
 			if (branchObserver) {
 				branchObserver.disconnect();
@@ -380,9 +405,7 @@
 	function tick() {
 		ui.tick();
 
-		// Refresh usage when a window ends (5h / 7d). SSE won't fire at rollover unless a message is sent.
 		const now = Date.now();
-
 		if (usageResetMs.five_hour && now >= usageResetMs.five_hour && rolloverHandledForResetMs.five_hour !== usageResetMs.five_hour) {
 			rolloverHandledForResetMs.five_hour = usageResetMs.five_hour;
 			refreshUsage();
@@ -392,7 +415,6 @@
 			refreshUsage();
 		}
 
-		// Optional hourly safety refresh.
 		const ONE_HOUR_MS = 60 * 60 * 1000;
 		const sseAge = now - lastUsageSseMs;
 		const anyAge = now - lastUsageUpdateMs;
@@ -401,6 +423,5 @@
 		}
 	}
 
-	// Keep countdowns + markers updated.
 	setInterval(tick, 1000);
 })();

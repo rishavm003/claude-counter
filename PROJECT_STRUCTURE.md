@@ -10,6 +10,7 @@ claude-counter-0.4.2/
 │   ├── manifest.json    # Extension manifest (entry point)
 │   ├── background.js    # Service worker (notifications, commands)
 │   ├── styles.css       # Extension styles
+│   ├── assets/          # Static assets (icons)
 │   ├── content/         # Content scripts (runs on claude.ai pages)
 │   │   ├── constants.js     # DOM selectors and constants
 │   │   ├── bridge-client.js # Communication with injected script
@@ -20,7 +21,7 @@ claude-counter-0.4.2/
 │   │   └── bridge.js        # Intercepts Claude's API calls
 │   └── vendor/          # Third-party code
 │       └── o200k_base.js    # Tokenizer (from gpt-tokenizer)
-├── assets/             # Static assets (icons, images)
+├── assets/             # Global static assets (source)
 │   ├── icon16.png
 │   ├── icon32.png
 │   ├── icon48.png
