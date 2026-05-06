@@ -1,5 +1,8 @@
 # Claude Counter
 
+[![GitHub](https://img.shields.io/badge/GitHub-rishavm003/claude--counter-blue?logo=github)](https://github.com/rishavm003/claude-counter)
+[![Version](https://img.shields.io/badge/version-0.4.2-green)](https://github.com/rishavm003/claude-counter/releases)
+
 A minimal browser extension that shows token count, cache timer, and usage bars on claude.ai.
 
 ## Features
@@ -12,18 +15,18 @@ A minimal browser extension that shows token count, cache timer, and usage bars 
 
 **Chrome / Edge / Chromium**
 
-1. Download [`claude-counter-0.4.2.zip`](../../releases/download/v0.4.2/claude-counter-0.4.2.zip)
+1. Download [`claude-counter-0.4.2.zip`](https://github.com/rishavm003/claude-counter/releases/download/v0.4.2/claude-counter-0.4.2.zip) from [GitHub Releases](https://github.com/rishavm003/claude-counter/releases)
 2. Go to `chrome://extensions` and enable **Developer mode**
 3. Drag and drop the zip onto the page
 
 **Firefox**
 
-1. Download [`claude-counter-0.4.2.xpi`](../../releases/download/v0.4.2/claude-counter-0.4.2.xpi)
+1. Download [`claude-counter-0.4.2.xpi`](https://github.com/rishavm003/claude-counter/releases/download/v0.4.2/claude-counter-0.4.2.xpi) from [GitHub Releases](https://github.com/rishavm003/claude-counter/releases)
 2. Drag it into any Firefox window and click **Add**
 
 **Userscript**
 
-1. Install the userscript from [`claude-counter.user.js`](./userscript/claude-counter.user.js)
+1. Install the userscript from [`claude-counter.user.js`](https://github.com/rishavm003/claude-counter/blob/main/userscript/claude-counter.user.js) (click **Raw**, then install with Tampermonkey/Greasemonkey)
 
 ## How it works
 
@@ -42,6 +45,23 @@ A minimal browser extension that shows token count, cache timer, and usage bars 
 
 - Token counting via [gpt-tokenizer](https://github.com/niieani/gpt-tokenizer) (MIT)
 - Inspired by [Claude Usage Tracker](https://github.com/lugia19/Claude-Usage-Extension) by lugia19
+
+## Development
+
+See [PROJECT_STRUCTURE.md](./PROJECT_STRUCTURE.md) for folder organization and development guide.
+
+### Quick Start
+
+```bash
+# Clone the repo
+git clone https://github.com/rishavm003/claude-counter.git
+
+# Load in Chrome/Edge:
+# 1. Go to chrome://extensions
+# 2. Enable "Developer mode"
+# 3. Click "Load unpacked"
+# 4. Select the extension/ folder
+```
 
 ## License
 
