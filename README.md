@@ -22,21 +22,11 @@ A premium browser extension that shows token count, cache timer, and advanced us
 2. Go to `chrome://extensions` and enable **Developer mode**
 3. Drag and drop the downloaded ZIP file onto the page
 
-**Firefox**
-
-1. Download the latest `.xpi` from [GitHub Releases](https://github.com/rishavm003/claude-counter/releases)
-2. Drag it into any Firefox window and click **Add**
-
 ## How it works
 
 - **Smart Detection**: Automatically finds your account ID and usage data even on the latest Claude URL layouts.
 - **API Interception**: Safely reads Claude's internal responses to provide unrounded, exact usage percentages.
 - **Privacy First**: No external servers. All tokenization and data processing happen entirely within your browser.
-
-## Credits
-
-- Token counting via [gpt-tokenizer](https://github.com/niieani/gpt-tokenizer)
-- Inspired by the community effort to track LLM usage limits.
 
 ## Development
 
