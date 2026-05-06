@@ -1,0 +1,44 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create Extension ZIP (Chrome/Edge)
+        run: |
+          cd extension
+          zip -r ../claude-counter-${GITHUB_REF_NAME#v}.zip .
+          cd ..
+
+      - name: Create Extension XPI (Firefox)
+        run: |
+          cd extension
+          zip -r ../claude-counter-${GITHUB_REF_NAME#v}.xpi .
+          cd ..
+
+      - name: Create Source ZIP
+        run: |
+          zip -r claude-counter-${GITHUB_REF_NAME#v}-source.zip \
+            extension/ assets/ docs/ userscript/ scripts/ .github/ \
+            README.md PROJECT_STRUCTURE.md .gitignore
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            claude-counter-*.zip
+            claude-counter-*.xpi
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

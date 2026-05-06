@@ -101,7 +101,7 @@
 		bridgeReadyPromise = new Promise((resolve) => {
 			const script = document.createElement('script');
 			script.id = CC.DOM.BRIDGE_SCRIPT_ID;
-			script.src = runtime.getURL('src/injected/bridge.js');
+			script.src = runtime.getURL('injected/bridge.js');
 			script.onload = () => resolve(true);
 			script.onerror = () => resolve(false);
 			(document.head || document.documentElement).appendChild(script);

@@ -80,6 +80,14 @@
 		});
 	}
 
+	function getOrgIdFromUrl() {
+		const pathMatch = window.location.pathname.match(/\/organizations\/([^/]+)/);
+		if (pathMatch) return pathMatch[1];
+		
+		// Fallback: Check for stored orgId or look for it in the page state
+		return globalThis.CC_LAST_ORG_ID || null;
+	}
+
 	function makeTooltip(text) {
 		const tip = document.createElement('div');
 		tip.className = 'bg-bg-500 text-text-000 cc-tooltip';
@@ -326,7 +334,8 @@
 		attachHeader() {
 			const chatMenu = document.querySelector(CC.DOM.CHAT_MENU_TRIGGER);
 			if (!chatMenu) return;
-			const anchor = chatMenu.closest(CC.DOM.CHAT_PROJECT_WRAPPER) || chatMenu.parentElement;
+			// Try to find a stable container, or just use the parent
+			const anchor = chatMenu.closest(CC.DOM.CHAT_PROJECT_WRAPPER) || chatMenu.parentElement?.parentElement || chatMenu.parentElement;
 			if (!anchor) return;
 			if (anchor.nextElementSibling !== this.headerContainer) anchor.after(this.headerContainer);
 			this._renderHeader();
@@ -335,11 +344,23 @@
 
 		attachUsageLine() {
 			if (!this.usageLine) return;
-			const modelSelector = document.querySelector(CC.DOM.MODEL_SELECTOR_DROPDOWN);
-			if (!modelSelector) return;
-			const toolbarRow = modelSelector.closest('div[class*="flex"][class*="row"]') || modelSelector.parentElement?.parentElement;
-			if (!toolbarRow) return;
-			if (toolbarRow.nextElementSibling !== this.usageLine) toolbarRow.after(this.usageLine);
+			
+			// Target the actual chat input area
+			const anchor = document.querySelector('[class*="ChatInput"]') || 
+						  document.querySelector('fieldset') ||
+						  document.querySelector('div.flex:has(> [contenteditable])') ||
+						  document.querySelector('[data-testid="chat-menu-trigger"]')?.closest('div.flex-col');
+			
+			if (!anchor) {
+				console.warn('[Claude Counter] No chat input anchor found');
+				return;
+			}
+			
+			// Attach at the very bottom of the input container
+			if (anchor.lastElementChild !== this.usageLine) {
+				anchor.appendChild(this.usageLine);
+				console.log('[Claude Counter] Usage line appended to input area:', anchor);
+			}
 			this.refreshProgressChrome();
 		}
 
@@ -381,6 +402,7 @@
 		}
 
 		async showDashboard() {
+			if (document.querySelector('.cc-dashboard-overlay')) return;
 			const history = await this.onHistoryRequest();
 			const backdrop = document.createElement('div');
 			backdrop.className = 'cc-overlay-backdrop';
@@ -404,7 +426,9 @@
 
 			const chartHtml = Object.entries(days).reverse().map(([date, val]) => `
 				<div class="cc-chart-column">
-					<div class="cc-chart-bar" style="height:${val}%" title="${date}: ${val.toFixed(1)}%"></div>
+					<div class="cc-chart-bar-wrapper">
+						<div class="cc-chart-bar" style="height:${Math.max(4, val)}%" title="${date}: ${val.toFixed(1)}%"></div>
+					</div>
 					<div class="cc-chart-label">${date.split(' ')[0]}</div>
 				</div>
 			`).join('');
@@ -468,6 +492,7 @@
 		}
 
 		showSettings() {
+			if (document.querySelector('.cc-settings-overlay:not(.cc-dashboard-overlay)')) return;
 			const backdrop = document.createElement('div');
 			backdrop.className = 'cc-overlay-backdrop';
 			const overlay = document.createElement('div');
@@ -617,11 +642,14 @@
 		}
 
 		setUsage(usage) {
+			console.log('[Claude Counter] Updating UI with usage:', usage);
 			this.refreshProgressChrome();
 			const session = usage?.five_hour || null;
 			const weekly = usage?.seven_day || null;
-			const hasAnyUsage = !!(session?.utilization != null || weekly?.utilization != null);
-			this.usageLine?.classList.toggle('cc-hidden', !hasAnyUsage);
+			if (this.usageLine) {
+				this.usageLine.classList.remove('cc-hidden');
+				this.usageLine.style.display = 'flex';
+			}
 
 			if (session?.utilization != null) {
 				const rawPct = session.utilization;

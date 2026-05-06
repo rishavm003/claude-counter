@@ -11,6 +11,9 @@ npm-debug.log*
 *.crx
 *.pem
 
+# Build outputs
+dist/
+
 # Gemini/Antigravity Artifacts
 .gemini
 TECHNICAL_DOCUMENTATION.md.tmp
