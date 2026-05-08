@@ -16,14 +16,18 @@
 		MODEL_CONTEXT_MAP: {
 			'Sonnet 4.6': 200000,
 			'Claude 3.5 Sonnet': 200000,
-			'Sonnet 3.5': 200000,
 			'Claude 3.5 Haiku': 200000,
 			'Claude 3 Opus': 200000,
 			'Claude 3 Sonnet': 200000,
-			'Claude 3 Haiku': 200000,
-			'Claude 2.1': 200000,
-			'Claude 2.0': 100000
-		}
+			'Claude 3 Haiku': 200000
+		},
+		MODEL_PRICE_MAP: {
+			'Opus': { input: 15, output: 75 },
+			'Sonnet': { input: 3, output: 15 },
+			'Haiku': { input: 0.25, output: 1.25 },
+			'Default': { input: 3, output: 15 }
+		},
+		DEFAULT_CONTEXT_LIMIT: 200000
 	});
 
 	CC.COLORS = Object.freeze({

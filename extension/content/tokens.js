@@ -237,6 +237,8 @@
 		return {
 			trunkMessageCount: trunk.length,
 			totalTokens,
+			inputTokens: trunk.reduce((acc, m) => m.sender === 'user' ? acc + (perMessageTokens[m.uuid] || 0) : acc, 0),
+			outputTokens: trunk.reduce((acc, m) => m.sender === 'assistant' ? acc + (perMessageTokens[m.uuid] || 0) : acc, 0),
 			breakdown: {
 				text: textTokens,
 				attachments: attachmentTokens,
@@ -248,5 +250,5 @@
 		};
 	}
 
-	CC.tokens = { computeConversationMetrics };
+	CC.tokens = { computeConversationMetrics, countTokens };
 })();

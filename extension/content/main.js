@@ -193,29 +193,7 @@
 	// Bridge must be ready before we can make requests
 	const bridgeReady = CC.injectBridgeOnce();
 
-	function checkNotifications(normalized) {
-		if (!normalized || !settings.thresholds?.length) return;
-		const sessionPct = normalized.five_hour?.utilization || 0;
-		
-		for (const threshold of settings.thresholds) {
-			const id = `cc-notif-${threshold}`;
-			if (sessionPct >= threshold) {
-				chrome.storage.local.get([id]).then((res) => {
-					// Only notify once per window/reset
-					const lastNotif = res[id] || 0;
-					const resetTime = usageResetMs.five_hour || 0;
-					if (lastNotif < resetTime - 5 * 60 * 60 * 1000 || lastNotif < Date.now() - 5 * 60 * 60 * 1000) {
-						chrome.runtime.sendMessage({
-							type: 'cc:notify',
-							title: 'Claude Usage Alert',
-							message: `You have reached ${Math.round(sessionPct)}% of your session limit.`
-						});
-						chrome.storage.local.set({ [id]: Date.now() });
-					}
-				});
-			}
-		}
-	}
+
 
 	async function recordUsageHistory(normalized) {
 		if (!normalized) return;
@@ -244,7 +222,7 @@
 		ui.setUsage(normalized);
 		
 		recordUsageHistory(normalized);
-		checkNotifications(normalized);
+
 	}
 
 	function updateOrgIdIfNeeded(newOrgId) {
@@ -292,8 +270,24 @@
 		}
 	}
 
+	let streamTokens = 0;
+	let streamStartTime = 0;
+
+	function handleChunk({ text }) {
+		if (!streamStartTime) streamStartTime = Date.now();
+		const count = CC.tokens.countTokens(text);
+		streamTokens += count;
+		const elapsed = (Date.now() - streamStartTime) / 1000;
+		if (elapsed > 0.2) {
+			const tps = streamTokens / elapsed;
+			ui.setLatency({ tps });
+		}
+	}
+
 	function handleGenerationStart({ startTime }) {
 		if (!currentConversationId) return;
+		streamTokens = 0;
+		streamStartTime = 0;
 		ui.setPendingCache(true);
 		ui.setLatency({ startTime });
 	}
@@ -304,6 +298,8 @@
 
 	function handleGenerationEnd({ duration }) {
 		ui.setLatency({ duration });
+		streamTokens = 0;
+		streamStartTime = 0;
 	}
 
 	async function handleConversationPayload({ orgId, conversationId, data }) {
@@ -323,6 +319,7 @@
 	CC.bridge.on('cc:generation_start', handleGenerationStart);
 	CC.bridge.on('cc:generation_end', handleGenerationEnd);
 	CC.bridge.on('cc:ttft', handleTtft);
+	CC.bridge.on('cc:chunk', handleChunk);
 	CC.bridge.on('cc:conversation', handleConversationPayload);
 	CC.bridge.on('cc:message_limit', handleMessageLimit);
 

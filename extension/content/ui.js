@@ -332,12 +332,12 @@
 		}
 
 		attachHeader() {
-			const chatMenu = document.querySelector(CC.DOM.CHAT_MENU_TRIGGER);
-			if (!chatMenu) return;
-			// Try to find a stable container, or just use the parent
-			const anchor = chatMenu.closest(CC.DOM.CHAT_PROJECT_WRAPPER) || chatMenu.parentElement?.parentElement || chatMenu.parentElement;
-			if (!anchor) return;
-			if (anchor.nextElementSibling !== this.headerContainer) anchor.after(this.headerContainer);
+			if (!this.headerContainer) return;
+			// Move to a global fixed container if not already there
+			if (this.headerContainer.parentElement !== document.body) {
+				document.body.appendChild(this.headerContainer);
+				console.log('[Claude Counter] Header attached as floating pill');
+			}
 			this._renderHeader();
 			this.refreshProgressChrome();
 		}
@@ -382,6 +382,10 @@
 				<div class="cc-details-item"><span>Tools:</span><span>${breakdown.tools.toLocaleString()}</span></div>
 				<hr style="opacity:0.1; margin:4px 0">
 				<div class="cc-details-item" style="font-weight:bold"><span>Total:</span><span>${totalTokens.toLocaleString()}</span></div>
+				<div class="cc-details-item cc-cost-estimate" style="margin-top:4px; padding-top:4px; border-top:1px dashed rgba(255,255,255,0.1)">
+					<span>Est. API Value:</span>
+					<span style="color:#10b981">$${this._calculateCost(metrics).toFixed(4)}</span>
+				</div>
 			`;
 
 			const rect = this.lengthGroup.getBoundingClientRect();
@@ -559,7 +563,7 @@
 			}
 		}
 
-		setLatency({ startTime, ttft, duration }) {
+		setLatency({ startTime, ttft, duration, tps }) {
 			if (!this.settings.showLatency) {
 				this.latencyGroup.textContent = '';
 				return;
@@ -567,6 +571,8 @@
 			if (startTime) {
 				this.latencyStartTime = startTime;
 				this.latencyGroup.textContent = '...';
+			} else if (tps) {
+				this.latencyGroup.textContent = `⚡ ${Math.round(tps)} t/s`;
 			} else if (ttft) {
 				this.latencyGroup.textContent = `TTFT: ${ttft}ms`;
 			} else if (duration) {
@@ -592,6 +598,8 @@
 
 			// Mini bar
 			const isFull = pct >= 99.5;
+			const isWarning = pct >= 90;
+			
 			if (isFull) {
 				this.lengthDisplay.style.opacity = '0.5';
 				this.lengthBar = null;
@@ -599,16 +607,34 @@
 			} else {
 				this.lengthDisplay.style.opacity = '';
 				const bar = document.createElement('div');
-				bar.className = 'cc-bar cc-bar--mini';
+				bar.className = `cc-bar cc-bar--mini ${isWarning ? 'cc-pulse-warn' : ''}`;
 				this.lengthBar = bar;
-				const fill = document.createElement('div');
-				fill.className = 'cc-bar__fill';
-				fill.style.width = `${pct}%`;
-				bar.appendChild(fill);
+				
+				// Heatmap segments
+				const textPct = (breakdown.text / limit) * 100;
+				const attachPct = (breakdown.attachments / limit) * 100;
+				const toolPct = (breakdown.tools / limit) * 100;
+
+				const createSegment = (p, cls) => {
+					if (p <= 0) return null;
+					const s = document.createElement('div');
+					s.className = `cc-bar__fill ${cls}`;
+					s.style.width = `${p}%`;
+					return s;
+				};
+
+				const segments = [
+					createSegment(textPct, 'cc-fill-text'),
+					createSegment(attachPct, 'cc-fill-attach'),
+					createSegment(toolPct, 'cc-fill-tool')
+				].filter(Boolean);
+				
+				bar.replaceChildren(...segments);
 				this.refreshProgressChrome();
 				const barWrapper = document.createElement('span');
 				barWrapper.className = 'inline-flex items-center';
 				barWrapper.appendChild(bar);
+				this.headerDisplay.classList.toggle('cc-text-warn', isWarning);
 				this.lengthGroup.replaceChildren(this.lengthDisplay, document.createTextNode('\u00A0\u00A0'), barWrapper);
 			}
 
@@ -678,6 +704,20 @@
 				if (modelName.includes(name)) return limit;
 			}
 			return CC.CONST.DEFAULT_CONTEXT_LIMIT;
+		}
+
+		_calculateCost(metrics) {
+			const modelBtn = document.querySelector(CC.DOM.MODEL_SELECTOR_DROPDOWN);
+			const modelName = modelBtn?.textContent?.trim() || '';
+			let key = 'Default';
+			if (modelName.includes('Opus')) key = 'Opus';
+			else if (modelName.includes('Sonnet')) key = 'Sonnet';
+			else if (modelName.includes('Haiku')) key = 'Haiku';
+			
+			const prices = CC.CONST.MODEL_PRICE_MAP[key];
+			const inputCost = (metrics.inputTokens / 1000000) * prices.input;
+			const outputCost = (metrics.outputTokens / 1000000) * prices.output;
+			return inputCost + outputCost;
 		}
 
 		_updateMarkers() {

@@ -132,6 +132,9 @@
 					if (!raw) continue;
 					try {
 						const json = JSON.parse(raw);
+						if (json?.type === 'content_block_delta' && json.delta?.text) {
+							post('cc:chunk', { text: json.delta.text });
+						}
 						if (json?.type === 'message_limit' && json.message_limit) {
 							post('cc:message_limit', json.message_limit);
 						}
