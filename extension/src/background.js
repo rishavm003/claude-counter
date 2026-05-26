@@ -1,6 +1,5 @@
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-	// Handlers for messages
-});
+// Bug #17 fix: removed empty chrome.runtime.onMessage listener that consumed
+// messages without responding, potentially blocking sendMessage callers in MV3.
 
 chrome.commands.onCommand.addListener((command) => {
 	if (command === 'toggle-overlay') {
