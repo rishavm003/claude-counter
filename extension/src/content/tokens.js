@@ -29,19 +29,11 @@
 		}
 	}
 
-	function getTokenizer() {
-		return globalThis.GPTTokenizer_o200k_base || null;
-	}
-
 	function countTokens(text) {
 		if (!text) return 0;
-		const tokenizer = getTokenizer();
-		if (!tokenizer?.countTokens) return 0;
-		try {
-			return tokenizer.countTokens(text);
-		} catch {
-			return 0;
-		}
+		// Use a lightweight heuristic since the 2MB exact tokenizer was removed for size.
+		// On average, 1 token is ~3.5 to 4 English characters.
+		return Math.ceil(text.length / 3.5);
 	}
 
 	function buildTrunk(conversation) {
@@ -55,8 +47,12 @@
 		if (!leaf) return [];
 
 		const trunk = [];
+		// Bug #13 fix: guard against cyclic parent references in malformed conversation data.
+		const seen = new Set();
 		let currentId = leaf;
 		while (currentId && currentId !== ROOT_MESSAGE_ID) {
+			if (seen.has(currentId)) break; // cycle detected
+			seen.add(currentId);
 			const msg = byId.get(currentId);
 			if (!msg) break;
 			trunk.push(msg);
@@ -237,6 +233,8 @@
 		return {
 			trunkMessageCount: trunk.length,
 			totalTokens,
+			inputTokens: trunk.reduce((acc, m) => m.sender === 'user' ? acc + (perMessageTokens[m.uuid] || 0) : acc, 0),
+			outputTokens: trunk.reduce((acc, m) => m.sender === 'assistant' ? acc + (perMessageTokens[m.uuid] || 0) : acc, 0),
 			breakdown: {
 				text: textTokens,
 				attachments: attachmentTokens,
@@ -248,5 +246,5 @@
 		};
 	}
 
-	CC.tokens = { computeConversationMetrics };
+	CC.tokens = { computeConversationMetrics, countTokens };
 })();

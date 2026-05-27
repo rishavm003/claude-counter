@@ -1,14 +1,5 @@
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-	if (message.type === 'cc:notify') {
-		chrome.notifications.create({
-			type: 'basic',
-			iconUrl: 'assets/icon128.png',
-			title: message.title,
-			message: message.message,
-			priority: 2
-		});
-	}
-});
+// Bug #17 fix: removed empty chrome.runtime.onMessage listener that consumed
+// messages without responding, potentially blocking sendMessage callers in MV3.
 
 chrome.commands.onCommand.addListener((command) => {
 	if (command === 'toggle-overlay') {

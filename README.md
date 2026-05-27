@@ -1,68 +1,61 @@
-# Claude Counter
+# 📊 Claude Counter
 
 [![GitHub](https://img.shields.io/badge/GitHub-rishavm003/claude--counter-blue?logo=github)](https://github.com/rishavm003/claude-counter)
-[![Version](https://img.shields.io/badge/version-0.4.2-green)](https://github.com/rishavm003/claude-counter/releases)
+[![Version](https://img.shields.io/badge/version-0.1.4-green)](https://github.com/rishavm003/claude-counter/releases)
 
-A minimal browser extension that shows token count, cache timer, and usage bars on claude.ai.
+**Claude Counter** is a premium, lightweight browser extension designed to provide real-time usage insights and token analytics directly within the **claude.ai** interface. It empowers power users to track their limits with precision and a sleek, integrated aesthetic.
 
-## Features
+---
 
-- **Token count** — Approximate token count for the current conversation, with a mini progress bar against the 200k context limit
-- **Cache timer** — Countdown showing how long the conversation remains cached (cheaper to continue)
-- **Usage bars** — Session (5-hour) and weekly (7-day) usage from Claude's native API, with progress bars and reset countdowns (more accurate than the rounded /usage page)
+## ✨ Key Features
 
-## Installation
+### 🚀 Real-Time Usage Tracking
+- **Smart Usage Bars**: View your exact Session (5-hour) and Weekly (7-day) utilization percentages with high-fidelity progress bars.
+- **Reset Timers**: Know exactly when your limits will refresh with live countdowns integrated into the UI.
 
-**Chrome / Edge / Chromium**
+### 🧠 Advanced Token Analytics
+- **Live Token Counting**: Track conversation length against the 200k context limit using an accurate, on-device tokenizer.
+- **Historical Dashboard**: Access a systematic analytics panel (📊) to visualize your peak usage trends over the last 7 days.
 
-1. Download [`claude-counter-0.4.2.zip`](https://github.com/rishavm003/claude-counter/releases/download/v0.4.2/claude-counter-0.4.2.zip) from [GitHub Releases](https://github.com/rishavm003/claude-counter/releases)
-2. Go to `chrome://extensions` and enable **Developer mode**
-3. Drag and drop the zip onto the page
+### 💎 Premium Design
+- **Glassmorphism UI**: A modern interface featuring smooth gradients and translucent backgrounds that blend seamlessly with Claude's native design.
+- **Performance Optimized**: Built for speed with zero impact on page load times or responsiveness.
 
-**Firefox**
+---
 
-1. Download [`claude-counter-0.4.2.xpi`](https://github.com/rishavm003/claude-counter/releases/download/v0.4.2/claude-counter-0.4.2.xpi) from [GitHub Releases](https://github.com/rishavm003/claude-counter/releases)
-2. Drag it into any Firefox window and click **Add**
+## 🛠️ Installation
 
-**Userscript**
+### Chrome / Edge / Chromium
 
-1. Install the userscript from [`claude-counter.user.js`](https://github.com/rishavm003/claude-counter/blob/main/userscript/claude-counter.user.js) (click **Raw**, then install with Tampermonkey/Greasemonkey)
+1.  **Download**: Get the latest release [`claude-counter-v0.1.4-latest.zip`](https://github.com/rishavm003/claude-counter/releases/download/v0.1.4/claude-counter-v0.1.4-latest.zip).
+2.  **Developer Mode**: Navigate to `chrome://extensions` and toggle **Developer mode** (top right).
+3.  **Install**: Simply drag and drop the downloaded ZIP file anywhere onto the extensions page.
 
-## How it works
+---
 
-- Intercepts Claude's API responses to read conversation data and usage info
-- Uses a vendored tokenizer (`o200k_base`) for approximate token counting
-- Uses Claude’s `/usage` plus live SSE `message_limit` data; the SSE provides exact, unrounded utilization fractions, so the progress bars are more accurate than the rounded percentages shown on Claude’s native /usage page
-- Watches for DOM changes to inject UI elements as you navigate
+## 🔍 Technical Overview
 
-## Privacy
+- **Smart Interception**: Uses a sophisticated bridge to intercept Claude's internal API responses, providing unrounded, exact usage data.
+- **Universal Compatibility**: Features a resilient detection engine that works across all Claude organizational and conversation URL structures.
+- **Local-First Architecture**: All calculations and storage happen locally. Your conversation data never leaves your browser.
 
-- All data stays local — no external servers, no tracking
-- Reads your `lastActiveOrg` cookie to query Claude's `/usage` endpoint
-- Makes requests only to `claude.ai`
+---
 
-## Credits
+## 🛡️ Privacy & Security
 
-- Token counting via [gpt-tokenizer](https://github.com/niieani/gpt-tokenizer) (MIT)
-- Inspired by [Claude Usage Tracker](https://github.com/lugia19/Claude-Usage-Extension) by lugia19
+- **Zero Tracking**: No external analytics, trackers, or remote servers.
+- **Secure Access**: Interacts only with `claude.ai` endpoints using your existing session authentication.
+- **Open Source**: Fully transparent codebase for community audit and contribution.
 
-## Development
+---
 
-See [PROJECT_STRUCTURE.md](./PROJECT_STRUCTURE.md) for folder organization and development guide.
+## 🤝 Acknowledgments
 
-### Quick Start
+- **Tokenization**: Powered by [gpt-tokenizer](https://github.com/niieani/gpt-tokenizer).
+- **Inspiration**: Inspired by community-driven efforts to enhance the Claude user experience.
 
-```bash
-# Clone the repo
-git clone https://github.com/rishavm003/claude-counter.git
+---
 
-# Load in Chrome/Edge:
-# 1. Go to chrome://extensions
-# 2. Enable "Developer mode"
-# 3. Click "Load unpacked"
-# 4. Select the extension/ folder
-```
+## 📄 License
 
-## License
-
-MIT
+Distributed under the **MIT License**. See `LICENSE` for more information.

@@ -2,15 +2,18 @@
 # Creates distributable ZIP files for Chrome/Edge and Firefox
 
 param(
-    [string]$Version = "0.4.2"
+    [string]$Version = "0.1.4"
 )
 
 $ErrorActionPreference = "Stop"
-$DistDir = "f:\claude-counter-0.4.2\dist"
-$ExtensionDir = "f:\claude-counter-0.4.2\extension"
-$RootDir = "f:\claude-counter-0.4.2"
+$RootDir = Split-Path $PSScriptRoot -Parent
+$DistDir = "$RootDir\dist"
+$ExtensionDir = "$RootDir\extension"
 
 Write-Host "Building Claude Counter v$Version..." -ForegroundColor Cyan
+Write-Host ""
+
+& "$PSScriptRoot\check-release.ps1" -Version $Version
 Write-Host ""
 
 # Ensure dist directory exists
@@ -20,6 +23,11 @@ if (!(Test-Path $DistDir)) {
 
 # Clean old builds
 Get-ChildItem $DistDir -Filter "*.zip" | Remove-Item -Force
+Get-ChildItem $DistDir -Filter "*.xpi" | Remove-Item -Force
+
+Write-Host "0. Building userscript artifact..." -ForegroundColor Yellow
+& "$PSScriptRoot\build-userscript.ps1" -Version $Version
+Write-Host ""
 
 Write-Host "1. Creating Chrome/Edge extension ZIP..." -ForegroundColor Yellow
 $ChromeZip = "$DistDir\claude-counter-$Version.zip"
@@ -30,7 +38,11 @@ Write-Host ""
 Write-Host "2. Creating Firefox XPI (unsigned)..." -ForegroundColor Yellow
 # Firefox XPI is essentially a ZIP with .xpi extension
 $FirefoxXpi = "$DistDir\claude-counter-$Version.xpi"
-Compress-Archive -Path "$ExtensionDir\*" -DestinationPath $FirefoxXpi -Force
+$FirefoxZipTemp = "$DistDir\claude-counter-$Version-temp-ff.zip"
+if (Test-Path $FirefoxZipTemp) { Remove-Item $FirefoxZipTemp -Force }
+if (Test-Path $FirefoxXpi) { Remove-Item $FirefoxXpi -Force }
+Compress-Archive -Path "$ExtensionDir\*" -DestinationPath $FirefoxZipTemp -Force
+Rename-Item -Path $FirefoxZipTemp -NewName "claude-counter-$Version.xpi"
 Write-Host "   Created: $FirefoxXpi" -ForegroundColor Green
 Write-Host "   Note: For Firefox Add-ons store, you need to sign this with Mozilla" -ForegroundColor DarkYellow
 
@@ -41,7 +53,8 @@ Compress-Archive -Path @(
     "$RootDir\extension",
     "$RootDir\assets",
     "$RootDir\docs",
-    "$RootDir\userscript",
+    "$RootDir\scripts",
+    "$RootDir\.github",
     "$RootDir\README.md",
     "$RootDir\PROJECT_STRUCTURE.md",
     "$RootDir\.gitignore"

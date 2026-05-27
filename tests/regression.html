@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Claude Counter Regression Harness</title>
+	<link rel="stylesheet" href="../extension/src/styles.css">
+	<style>
+		body { font-family: system-ui, sans-serif; padding: 24px; background: #111; color: #eee; }
+		.ChatInput { max-width: 760px; margin-top: 24px; padding: 16px; border: 1px solid #444; }
+		.flex { display: flex; }
+		.flex-col { display: flex; flex-direction: column; }
+		#results { margin-top: 24px; white-space: pre-wrap; }
+	</style>
+</head>
+<body>
+	<button data-testid="model-selector-dropdown">Claude Sonnet 4.6</button>
+	<button data-testid="chat-menu-trigger">Menu</button>
+	<div class="ChatInput">
+		<div contenteditable="true">Mock prompt</div>
+	</div>
+	<div data-message-id="msg-user"></div>
+	<div data-message-id="msg-assistant"></div>
+	<pre id="results"></pre>
+
+	<script>
+		location.hash = '/chat/mock-conversation';
+		history.replaceState(null, '', '/chat/mock-conversation');
+
+		const storage = {};
+		globalThis.chrome = {
+			storage: {
+				local: {
+					async get(keys) {
+						const out = {};
+						for (const key of Array.isArray(keys) ? keys : [keys]) out[key] = storage[key];
+						return out;
+					},
+					async set(obj) {
+						Object.assign(storage, obj);
+					}
+				}
+			},
+			runtime: {
+				onMessage: { addListener() {} },
+				getURL(path) { return `../extension/${path}`; }
+			}
+		};
+	</script>
+	<script src="../extension/src/content/constants.js"></script>
+	<script src="../extension/src/content/bridge-client.js"></script>
+	<script src="../extension/src/content/tokens.js"></script>
+	<script src="../extension/src/content/ui.js"></script>
+	<script>
+		const CC = globalThis.ClaudeCounter;
+		CC.injectBridgeOnce = () => Promise.resolve(true);
+		CC.bridge.requestUsage = async () => ({
+			five_hour: { utilization: 42.4, resets_at: new Date(Date.now() + 3600000).toISOString() },
+			seven_day: { utilization: 12.5, resets_at: new Date(Date.now() + 86400000).toISOString() }
+		});
+		CC.bridge.requestConversation = async () => {
+			const payload = {
+				current_leaf_message_uuid: 'msg-assistant',
+				chat_messages: [
+					{ uuid: 'msg-user', sender: 'user', parent_message_uuid: '00000000-0000-4000-8000-000000000000', content: [{ type: 'text', text: 'hello world' }] },
+					{ uuid: 'msg-assistant', sender: 'assistant', parent_message_uuid: 'msg-user', created_at: new Date().toISOString(), content: [{ type: 'text', text: 'hi there' }] }
+				]
+			};
+			window.postMessage({ cc: 'ClaudeCounter', type: 'cc:conversation', payload: { orgId: 'org', conversationId: 'mock-conversation', data: payload } }, '*');
+			return payload;
+		};
+		CC.bridge.requestHash = async (text) => ({ hash: String(text.length).padStart(16, '0') });
+	</script>
+	<script src="../extension/src/content/main.js"></script>
+	<script>
+		setTimeout(() => {
+			const checks = [
+				['usage row attached', !!document.querySelector('.cc-usageRow')],
+				['header attached', !!document.querySelector('.cc-header')],
+				['status pill rendered', !!document.querySelector('.cc-status-pill')],
+				['settings/action buttons keyboardable', [...document.querySelectorAll('.cc-action-btn')].every((b) => b.tagName === 'BUTTON')],
+				['message badge injected', !!document.querySelector('.cc-message-badge')]
+			];
+			const failed = checks.filter(([, ok]) => !ok);
+			document.getElementById('results').textContent = checks.map(([name, ok]) => `${ok ? 'PASS' : 'FAIL'} ${name}`).join('\n');
+			document.body.dataset.regressionStatus = failed.length ? 'failed' : 'passed';
+		}, 1200);
+	</script>
+</body>
+</html>

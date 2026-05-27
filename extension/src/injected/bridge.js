@@ -132,6 +132,9 @@
 					if (!raw) continue;
 					try {
 						const json = JSON.parse(raw);
+						if (json?.type === 'content_block_delta' && json.delta?.text) {
+							post('cc:chunk', { text: json.delta.text });
+						}
 						if (json?.type === 'message_limit' && json.message_limit) {
 							post('cc:message_limit', json.message_limit);
 						}
@@ -166,6 +169,8 @@
 			// 2. Try API fallback
 			console.log('[Claude Counter] OrgId not in state, fetching via API...');
 			const res = await originalFetch('https://claude.ai/api/organizations', { credentials: 'include' });
+			// Bug #7 fix: check HTTP status before parsing JSON
+			if (!res.ok) throw new Error(`HTTP ${res.status}`);
 			const orgs = await res.json();
 			if (Array.isArray(orgs) && orgs.length > 0) {
 				const orgId = orgs[0].uuid || orgs[0].id;
@@ -174,7 +179,7 @@
 				return orgId;
 			}
 		} catch (e) {
-			console.error('[Claude Counter] OrgId discovery failed:', e);
+			console.log('[Claude Counter] OrgId discovery failed:', e);
 		}
 		return null;
 	}
@@ -211,6 +216,8 @@
 					method: 'GET',
 					credentials: 'include'
 				});
+				// Bug #7 fix: check HTTP status before parsing JSON
+				if (!res.ok) throw new Error(`HTTP ${res.status} fetching usage`);
 				const json = await res.json();
 				postResponse(requestId, true, json, null);
 				return;
@@ -226,6 +233,8 @@
 					method: 'GET',
 					credentials: 'include'
 				});
+				// Bug #7 fix: check HTTP status before parsing JSON
+				if (!res.ok) throw new Error(`HTTP ${res.status} fetching conversation`);
 				const json = await res.json();
 				post('cc:conversation', { orgId, conversationId, data: json });
 				postResponse(requestId, true, json, null);
