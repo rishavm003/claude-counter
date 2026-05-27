@@ -182,8 +182,11 @@
 	let lastUsageSseMs = 0;
 	let usageFetchInFlight = false;
 	let lastUsageUpdateMs = 0;
+	let lastUsageAttemptMs = 0;
 	const rolloverHandledForResetMs = { five_hour: null, seven_day: null };
 	let lastTokenUpdateMs = 0;
+	let lastTokenAttemptMs = 0;
+	let tickIntervalId = null;
 
 	// Settings state
 	let settings = {
@@ -226,9 +229,21 @@
 		},
 		onImportData: async (payload) => {
 			const next = {};
+			if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+				throw new Error('Import payload must be a JSON object');
+			}
 			if (payload && typeof payload.settings === 'object' && !Array.isArray(payload.settings)) {
 				next.settings = { ...settings, ...payload.settings };
 				settings = next.settings;
+			}
+			if (payload.settings !== undefined && (typeof payload.settings !== 'object' || Array.isArray(payload.settings))) {
+				throw new Error('Invalid settings in import payload');
+			}
+			if (payload.usageHistory !== undefined && !Array.isArray(payload.usageHistory)) {
+				throw new Error('Invalid usageHistory in import payload');
+			}
+			if (payload.errorLog !== undefined && !Array.isArray(payload.errorLog)) {
+				throw new Error('Invalid errorLog in import payload');
 			}
 			if (Array.isArray(payload?.usageHistory)) next.usageHistory = payload.usageHistory.slice(-3000);
 			if (Array.isArray(payload?.errorLog)) next.errorLog = payload.errorLog.slice(-200);
@@ -331,6 +346,7 @@
 
 	async function refreshUsage() {
 		await bridgeReady;
+		lastUsageAttemptMs = Date.now();
 		const orgId = getOrgIdFromUrl() || currentOrgId || getOrgIdFromCookie();
 		if (!orgId) {
 			ui.setStatus('usage', 'stale', 'Waiting for organization');
@@ -358,6 +374,7 @@
 
 	async function refreshConversation() {
 		await bridgeReady;
+		lastTokenAttemptMs = Date.now();
 		if (!currentConversationId) {
 			ui.setConversationMetrics();
 			return;
@@ -493,7 +510,22 @@
 	}
 
 	const unobserveUrl = observeUrlChanges(handleUrlChange);
+	let pageActive = true;
 	window.addEventListener('beforeunload', unobserveUrl);
+	window.addEventListener('pagehide', () => {
+		pageActive = false;
+		unobserveUrl();
+		if (tickIntervalId) {
+			clearInterval(tickIntervalId);
+			tickIntervalId = null;
+		}
+	});
+	window.addEventListener('pageshow', () => {
+		if (pageActive) return;
+		pageActive = true;
+		if (!tickIntervalId) tickIntervalId = setInterval(tick, 1000);
+		handleUrlChange();
+	});
 
 	// Refresh on branch navigation
 	let branchObserver = null;
@@ -560,7 +592,13 @@
 		if (currentConversationId && lastTokenUpdateMs && now - lastTokenUpdateMs > 10 * 60 * 1000) {
 			ui.setStatus('tokens', 'stale', 'Token data is older than 10 minutes');
 		}
+		if (lastUsageAttemptMs && !lastUsageUpdateMs && now - lastUsageAttemptMs > 60 * 1000) {
+			ui.setStatus('usage', 'stale', 'Usage connection pending');
+		}
+		if (lastTokenAttemptMs && !lastTokenUpdateMs && now - lastTokenAttemptMs > 60 * 1000) {
+			ui.setStatus('tokens', 'stale', 'Token connection pending');
+		}
 	}
 
-	setInterval(tick, 1000);
+	tickIntervalId = setInterval(tick, 1000);
 })();

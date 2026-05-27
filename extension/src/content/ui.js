@@ -101,6 +101,7 @@
 			this.breakdownCard = null;
 			this.domObserver = null;
 			this.badgeInjectTimer = null;
+			this.messageNodeCache = new Map();
 		}
 
 		applySettings(settings) {
@@ -399,12 +400,13 @@
 			if (!this.usageLine) return;
 			
 			// Find chat input anchor without relying on :has() (limited Firefox 115 support)
-			let anchor = document.querySelector('[class*="ChatInput"]') ||
-						 document.querySelector('fieldset');
+			const root = document.querySelector(CC.DOM.CHAT_PROJECT_WRAPPER) || document.body;
+			let anchor = root.querySelector('[class*="ChatInput"]') ||
+						 root.querySelector('fieldset');
 
 			// Fallback: find a div.flex that contains a contenteditable child
 			if (!anchor) {
-				const candidates = document.querySelectorAll('div.flex');
+				const candidates = root.querySelectorAll('div.flex');
 				for (const el of candidates) {
 					if (el.querySelector('[contenteditable]')) {
 						anchor = el;
@@ -415,7 +417,7 @@
 
 			// Last resort: use chat menu trigger parent
 			if (!anchor) {
-				anchor = document.querySelector('[data-testid="chat-menu-trigger"]')?.closest('div.flex-col');
+				anchor = root.querySelector('[data-testid="chat-menu-trigger"]')?.closest('div.flex-col');
 			}
 			
 			if (!anchor) {
@@ -623,6 +625,9 @@
 					<button id="cc-export-all" style="flex:1; padding:6px; font-size:10px; background:rgba(255,255,255,0.1); color:white; border:none; border-radius:4px; cursor:pointer">Export Data</button>
 					<button id="cc-import-all" style="flex:1; padding:6px; font-size:10px; background:rgba(255,255,255,0.1); color:white; border:none; border-radius:4px; cursor:pointer">Import Data</button>
 				</div>
+				<div style="display:flex; gap:10px; margin-top:10px">
+					<button id="cc-show-onboarding" style="width:100%; padding:6px; font-size:10px; background:rgba(255,255,255,0.1); color:white; border:none; border-radius:4px; cursor:pointer">Show Onboarding</button>
+				</div>
 				<div style="margin-top:12px; font-size:10px; opacity:0.5; text-align:center">
 					Tip: Toggle overlay via keyboard shortcut: <kbd style="background:rgba(255,255,255,0.1); padding:2px 4px; border-radius:3px">Alt+Shift+C</kbd>
 				</div>
@@ -661,11 +666,21 @@
 				input.onchange = async () => {
 					const file = input.files?.[0];
 					if (!file || !this.onImportData) return;
-					const payload = JSON.parse(await file.text());
-					await this.onImportData(payload);
-					close();
+					try {
+						const payload = JSON.parse(await file.text());
+						await this.onImportData(payload);
+						close();
+					} catch (error) {
+						this.setStatus('usage', 'failed', `Import failed: ${error?.message || String(error)}`);
+					}
 				};
 				input.click();
+			};
+
+			overlay.querySelector('#cc-show-onboarding').onclick = async () => {
+				if (this.onSettingsChange) await this.onSettingsChange({ onboardingSeen: false });
+				close();
+				this.showOnboardingIfNeeded({ onboardingSeen: false });
 			};
 		}
 
@@ -692,11 +707,21 @@
 		_injectBadgesNow(perMessageTokens) {
 			if (!this.settings.showBadges) {
 				document.querySelectorAll('.cc-message-badge').forEach(b => b.remove());
+				this.messageNodeCache.clear();
 				return;
 			}
 			if (!perMessageTokens) return;
 			for (const [uuid, tokens] of Object.entries(perMessageTokens)) {
-				const bubble = document.querySelector(`[data-message-id="${uuid}"], [data-testid="message-wrapper-${uuid}"]`);
+				let bubble = this.messageNodeCache.get(uuid) || null;
+				if (bubble && !document.contains(bubble)) {
+					this.messageNodeCache.delete(uuid);
+					bubble = null;
+				}
+				if (!bubble) {
+					const root = document.querySelector(CC.DOM.CHAT_PROJECT_WRAPPER) || document.body;
+					bubble = root.querySelector(`[data-message-id="${uuid}"], [data-testid="message-wrapper-${uuid}"]`);
+					if (bubble) this.messageNodeCache.set(uuid, bubble);
+				}
 				if (bubble && !bubble.querySelector('.cc-message-badge')) {
 					const badge = document.createElement('span');
 					badge.className = 'cc-message-badge';
