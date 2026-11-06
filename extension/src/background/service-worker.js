@@ -1,6 +1,4 @@
-// Bug #17 fix: removed empty chrome.runtime.onMessage listener that consumed
-// messages without responding, potentially blocking sendMessage callers in MV3.
-
+// Alt+Shift+C: tell the active claude.ai tab to show or hide the overlay.
 chrome.commands.onCommand.addListener((command) => {
 	if (command === 'toggle-overlay') {
 		chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {

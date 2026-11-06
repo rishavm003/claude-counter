@@ -28,7 +28,11 @@
 	/** Returns true when the current page is a chat or /new page. */
 	function isChatPage() {
 		const path = window.location.pathname;
-		return /^\/new$|\/chat\/|^\/new\//.test(path);
+		return /^\/$|^\/new$|^\/new\/|\/chat\/|\/project\//.test(path);
+	}
+
+	function escapeHtml(v) {
+		return String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 	}
 
 	function downloadFile(content, filename, type) {
@@ -106,7 +110,7 @@
 
 		applySettings(settings) {
 			this.settings = { ...this.settings, ...settings };
-			document.documentElement.classList.toggle('cc-reduced-motion', !!this.settings.reducedMotion);
+			document.documentElement?.classList.toggle('cc-reduced-motion', !!this.settings.reducedMotion);
 			this.setVisibility(!this.settings.userHidden);
 			this._renderHeader();
 			this.refreshProgressChrome();
@@ -130,8 +134,8 @@
 
 		getProgressChrome() {
 			const root = document.documentElement;
-			const modeDark = root.dataset?.mode === 'dark';
-			const modeLight = root.dataset?.mode === 'light';
+			const modeDark = root?.dataset?.mode === 'dark';
+			const modeLight = root?.dataset?.mode === 'light';
 			const isDark = modeDark && !modeLight;
 
 			const themeName = this.settings.theme || 'default';
@@ -191,22 +195,34 @@
 			this.refreshProgressChrome();
 		}
 
+
 		_observeTheme() {
 			const observer = new MutationObserver(() => this.refreshProgressChrome());
-			observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-mode'] });
+			const start = () => observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-mode'] });
+			if (document.documentElement) start();
+			else new MutationObserver((_, obs) => {
+				if (!document.documentElement) return;
+				obs.disconnect();
+				start();
+				this.refreshProgressChrome();
+			}).observe(document, { childList: true });
 		}
 
 		_observeDom() {
 			let usageReattachPending = false;
 			let headerReattachPending = false;
 
-			this.domObserver = new MutationObserver(() => {
+			// While Claude streams, the page mutates hundreds of times a second. Coalesce all of that
+			// into at most one pass every 200 ms instead of doing DOM queries on every mutation.
+			let pending = null;
+			const onMutations = () => {
+				pending = null;
 				const usageMissing = this.usageLine && !document.contains(this.usageLine);
 				const headerMissing = !document.contains(this.headerContainer);
 
 				if (usageMissing && !usageReattachPending) {
 					usageReattachPending = true;
-					// Snapshot path so a stale callback can't re-attach on a non-chat page (Bug #8)
+					// Snapshot path so a stale callback can't re-attach on a non-chat page 
 					const snapPath = window.location.pathname;
 					CC.waitForElement(CC.DOM.MODEL_SELECTOR_DROPDOWN, 60000).then((el) => {
 						usageReattachPending = false;
@@ -228,6 +244,13 @@
 				if (this.settings.showBadges && this.metrics?.perMessageTokens) {
 					this.injectBadges(this.metrics.perMessageTokens);
 				}
+
+				if (this.headerContainer) {
+					this.headerContainer.classList.toggle('cc-sidebar-open', this._isSidebarOpen());
+				}
+			};
+			this.domObserver = new MutationObserver(() => {
+				if (!pending) pending = setTimeout(onMutations, 200);
 			});
 
 			// Guard against document_start: body may not exist yet.
@@ -240,7 +263,7 @@
 						this.domObserver.observe(document.body, { childList: true, subtree: true });
 					}
 				});
-				bodyWatcher.observe(document.documentElement, { childList: true });
+				bodyWatcher.observe(document, { childList: true, subtree: true });
 			}
 		}
 
@@ -251,10 +274,15 @@
 			const main = document.createElement('div');
 			main.className = 'cc-usage-main';
 
+			this.planBadge = document.createElement('span');
+			this.planBadge.className = 'cc-plan-badge cc-hidden';
+			main.appendChild(this.planBadge);
+
 			const sessionGroup = document.createElement('div');
 			sessionGroup.className = 'cc-usageGroup';
 			this.sessionUsageSpan = document.createElement('span');
 			this.sessionUsageSpan.className = 'cc-usageText';
+			this.sessionUsageSpan.textContent = 'Session: --%';
 			this.sessionBar = document.createElement('div');
 			this.sessionBar.className = 'cc-bar cc-bar--usage';
 			this.sessionBarFill = document.createElement('div');
@@ -271,6 +299,7 @@
 			weeklyGroup.className = 'cc-usageGroup cc-usageGroup--weekly';
 			this.weeklyUsageSpan = document.createElement('span');
 			this.weeklyUsageSpan.className = 'cc-usageText';
+			this.weeklyUsageSpan.textContent = 'Weekly: --%';
 			this.weeklyBar = document.createElement('div');
 			this.weeklyBar.className = 'cc-bar cc-bar--usage';
 			this.weeklyBarFill = document.createElement('div');
@@ -285,6 +314,11 @@
 
 			main.appendChild(sessionGroup);
 			main.appendChild(weeklyGroup);
+
+			// Per-model weekly caps (Max) and paid extra-usage credits (Pro/Max), shown only when present.
+			this.extraUsageSpan = document.createElement('span');
+			this.extraUsageSpan.className = 'cc-usageText cc-usageExtra cc-hidden';
+			main.appendChild(this.extraUsageSpan);
 
 			const actions = document.createElement('div');
 			actions.className = 'cc-usage-actions';
@@ -379,9 +413,13 @@
 			this.usageLine.style.opacity = '0.5';
 			try {
 				await this.onUsageRefresh();
+			} catch (err) {
+				console.error('[Claude Counter] Refresh failed:', err);
 			} finally {
 				this.usageLine.style.opacity = '';
 				this.refreshingUsage = false;
+				this.refreshProgressChrome();
+				this._renderHeader();
 			}
 		}
 
@@ -390,7 +428,7 @@
 			// Move to a global fixed container if not already there
 			if (this.headerContainer.parentElement !== document.body) {
 				document.body.appendChild(this.headerContainer);
-				console.log('[Claude Counter] Header attached as floating pill');
+				
 			}
 			this._renderHeader();
 			this.refreshProgressChrome();
@@ -421,7 +459,7 @@
 			}
 			
 			if (!anchor) {
-				console.log('[Claude Counter] No chat input anchor found');
+				
 				return;
 			}
 			
@@ -431,7 +469,7 @@
 			// Attach at the very bottom of the input container
 			if (anchor.lastElementChild !== this.usageLine) {
 				anchor.appendChild(this.usageLine);
-				console.log('[Claude Counter] Usage line appended to input area:', anchor);
+				
 			}
 			this.refreshProgressChrome();
 		}
@@ -446,7 +484,6 @@
 
 			const card = document.createElement('div');
 			card.className = 'cc-breakdown-card';
-			// Bug #1 fix: was `metrics` (undefined free var); must be `this.metrics`
 			const { breakdown = { text: 0, attachments: 0, tools: 0 }, totalTokens } = this.metrics;
 			card.innerHTML = `
 				<h4>Context Info</h4>
@@ -455,9 +492,14 @@
 				<div class="cc-details-item"><span>Tools:</span><span>${breakdown.tools.toLocaleString()}</span></div>
 				<hr style="opacity:0.1; margin:4px 0">
 				<div class="cc-details-item" style="font-weight:bold"><span>Total:</span><span>${(totalTokens ?? 0).toLocaleString()}</span></div>
+				<div class="cc-details-item"><span>Model:</span><span>${escapeHtml(this._modelInfo().id || this._modelInfo().label)}</span></div>
+				<div class="cc-details-item"><span>Context window:</span><span>${(this.settings.manualLimit || this._detectContextLimit()).toLocaleString()}</span></div>
 				<div class="cc-details-item cc-cost-estimate" style="margin-top:4px; padding-top:4px; border-top:1px dashed rgba(255,255,255,0.1)">
-					<span>Est. API Value:</span>
-					<span style="color:#10b981">$${this._calculateCost(this.metrics).toFixed(4)}</span>
+					<span title="Rough pay-per-token API price for this chat, without caching. Not what a Pro/Max plan charges.">API-equivalent ≈</span>
+					<span style="color:#10b981">$${this._calculateCost(this.metrics).toFixed(3)}</span>
+				</div>
+				<div style="font-size:10px; opacity:0.6; margin-top:6px; line-height:1.35">
+					All counts are estimates (~±15%). Not counted: system prompt, project knowledge, memory, tool definitions${this.metrics.uncountedFiles ? `, ${this.metrics.uncountedFiles} image/PDF file(s)` : ', images/PDFs'}.
 				</div>
 			`;
 
@@ -686,6 +728,10 @@
 
 		async showOnboardingIfNeeded(settings = {}) {
 			if (settings.onboardingSeen) return;
+			// Settings can load before <body> exists (document_start): wait for the page first.
+			if (!document.body) {
+				await new Promise((resolve) => document.addEventListener('DOMContentLoaded', resolve, { once: true }));
+			}
 			const { overlay, close } = this._makeModal('Claude Counter');
 			overlay.innerHTML = `
 				<h3>Claude Counter</h3>
@@ -841,7 +887,6 @@
 
 		_renderHeader() {
 			this.headerContainer.replaceChildren();
-			// Bug #18: use a dedicated flag instead of relying on textContent across innerHTML children
 			if (!this.lengthDisplay.textContent && !this.lengthDisplay.children.length) return;
 			const gap = this.lengthBar ? '\u00A0\u00A0' : '\u00A0';
 			this.headerDisplay.replaceChildren(this.lengthGroup, document.createTextNode(gap), this.cachedDisplay);
@@ -853,15 +898,28 @@
 			status.title = `Usage: ${this.status.usage.detail}; Tokens: ${this.status.tokens.detail}`;
 			this.headerDisplay.appendChild(status);
 			this.headerContainer.appendChild(this.headerDisplay);
+
+			this.headerContainer.classList.toggle('cc-sidebar-open', this._isSidebarOpen());
+		}
+
+		_isSidebarOpen() {
+			// Re-use the sidebar element while it stays in the page; a full-page attribute scan is costly.
+			let sidebar = this._sidebarEl;
+			if (!sidebar || !sidebar.isConnected) {
+				sidebar = document.querySelector('nav[aria-label*="sidebar" i], [data-testid*="sidebar" i], aside, .sidebar');
+				this._sidebarEl = sidebar || null;
+			}
+			if (!sidebar) return false;
+			const rect = sidebar.getBoundingClientRect();
+			return rect.width > 0 && rect.left >= 0;
 		}
 
 		setUsage(usage) {
-			console.debug('[Claude Counter] Updating UI with usage:', usage); // Bug #16: was console.log
 			this.refreshProgressChrome();
 			const session = usage?.five_hour || null;
 			const weekly = usage?.seven_day || null;
 			if (this.usageLine) {
-				// Bug #3 fix: SSE events fire from any page; only un-hide when actually on a chat page.
+				// SSE events fire from any page; only un-hide when actually on a chat page.
 				if (isChatPage()) {
 					this.usageLine.classList.remove('cc-hidden');
 					this.usageLine.style.display = 'flex';
@@ -870,6 +928,7 @@
 
 			if (session?.utilization != null) {
 				const rawPct = session.utilization;
+				this.sessionRawPct = rawPct;
 				this.sessionResetMs = session.resets_at ? Date.parse(session.resets_at) : null;
 				this.sessionWindowStartMs = this.sessionResetMs ? this.sessionResetMs - 5 * 60 * 60 * 1000 : null;
 				this.sessionUsageSpan.textContent = `Session: ${rawPct.toFixed(1)}%${this.sessionResetMs ? ` · ${formatResetCountdown(this.sessionResetMs)}` : ''}`;
@@ -879,37 +938,72 @@
 
 			if (weekly?.utilization != null) {
 				const rawPct = weekly.utilization;
+				this.weeklyRawPct = rawPct;
 				this.weeklyResetMs = weekly.resets_at ? Date.parse(weekly.resets_at) : null;
 				this.weeklyWindowStartMs = this.weeklyResetMs ? this.weeklyResetMs - 7 * 24 * 60 * 60 * 1000 : null;
 				this.weeklyUsageSpan.textContent = `Weekly: ${rawPct.toFixed(1)}%${this.weeklyResetMs ? ` · ${formatResetCountdown(this.weeklyResetMs)}` : ''}`;
 				this.weeklyBarFill.style.width = `${Math.min(100, rawPct)}%`;
 				this.weeklyBarFill.classList.toggle('cc-warn', rawPct >= 90);
 			}
+
+			if (usage?.plan) this.setPlan(usage.plan);
+
+			if (this.extraUsageSpan) {
+				const bits = [];
+				for (const w of usage?.extra_weekly || []) {
+					const label = w.label.charAt(0).toUpperCase() + w.label.slice(1);
+					bits.push(`${label} wk: ${w.utilization.toFixed(1)}%`);
+				}
+				const eu = usage?.extra_usage;
+				if (eu) {
+					const fmt = (v) => (v == null ? '?' : v.toFixed(2));
+					bits.push(`Extra: ${fmt(eu.used)}${eu.limit != null ? ` / ${fmt(eu.limit)}` : ''} ${eu.currency}${eu.spendLimitReached ? ' (cap hit)' : ''}`);
+				}
+				this.extraUsageSpan.textContent = bits.join(' · ');
+				this.extraUsageSpan.classList.toggle('cc-hidden', bits.length === 0);
+				const rows = usage?.weekly_breakdown || [];
+				this.weeklyUsageSpan.title = rows.length
+					? 'This week by product: ' + rows.map((r) => `${r.name} ${r.percent}%`).join(', ')
+					: '';
+			}
 			this._updateMarkers();
 		}
 
-		_detectContextLimit() {
-			const modelBtn = document.querySelector(CC.DOM.MODEL_SELECTOR_DROPDOWN);
-			const modelName = modelBtn?.textContent?.trim() || '';
-			for (const [name, limit] of Object.entries(CC.CONST.MODEL_CONTEXT_MAP)) {
-				if (modelName.includes(name)) return limit;
+		setPlan(plan) {
+			if (!this.planBadge) return;
+			// Only paid plans get a badge; Free shows nothing.
+			if (!plan?.name || plan.name === 'Free') {
+				this.planBadge.classList.add('cc-hidden');
+				return;
 			}
-			return CC.CONST.DEFAULT_CONTEXT_LIMIT;
+			this.plan = plan;
+			this.planBadge.textContent = plan.name;
+			this.planBadge.title = `Plan detected from your organization${plan.tier ? ` (tier: ${plan.tier})` : ''}`;
+			this.planBadge.classList.remove('cc-hidden');
 		}
 
-		_calculateCost(metrics) {
+		_modelInfo() {
+			if (this.metrics?.model) return this.metrics.model;
+			// Fallback: read the model picker label
 			const modelBtn = document.querySelector(CC.DOM.MODEL_SELECTOR_DROPDOWN);
-			const modelName = modelBtn?.textContent?.trim() || '';
-			let key = 'Default';
-			if (modelName.includes('Opus')) key = 'Opus';
-			else if (modelName.includes('Sonnet')) key = 'Sonnet';
-			else if (modelName.includes('Haiku')) key = 'Haiku';
-			
-			const prices = CC.CONST.MODEL_PRICE_MAP[key];
-			// Bug #2 fix: inputTokens / outputTokens can be undefined → NaN cost display
-			const inputCost = ((metrics.inputTokens ?? 0) / 1000000) * prices.input;
-			const outputCost = ((metrics.outputTokens ?? 0) / 1000000) * prices.output;
-			return inputCost + outputCost;
+			const label = (modelBtn?.textContent || '').trim().toLowerCase().replace(/\s+/g, '-');
+			return CC.tokens.getModelInfo(label);
+		}
+
+		_detectContextLimit() {
+			return this._modelInfo().context || CC.CONST.DEFAULT_CONTEXT_LIMIT;
+		}
+
+		/**
+		 * What this conversation would roughly cost on the pay-per-token API, with NO prompt caching
+		 * (every reply re-reads all earlier messages). Pro/Max users are not charged this; it is only
+		 * a sense of scale. Excludes system prompt, tool definitions, images and PDFs.
+		 */
+		_calculateCost(metrics) {
+			const info = this._modelInfo();
+			const inTok = metrics?.apiInputTokens ?? metrics?.inputTokens ?? 0;
+			const outTok = metrics?.apiOutputTokens ?? metrics?.outputTokens ?? 0;
+			return (inTok / 1e6) * info.input + (outTok / 1e6) * info.output;
 		}
 
 		_updateMarkers() {
@@ -927,6 +1021,12 @@
 
 		tick() {
 			const now = Date.now();
+			if (this.sessionRawPct != null && this.sessionUsageSpan) {
+				this.sessionUsageSpan.textContent = `Session: ${this.sessionRawPct.toFixed(1)}%${this.sessionResetMs ? ` · ${formatResetCountdown(this.sessionResetMs)}` : ''}`;
+			}
+			if (this.weeklyRawPct != null && this.weeklyUsageSpan) {
+				this.weeklyUsageSpan.textContent = `Weekly: ${this.weeklyRawPct.toFixed(1)}%${this.weeklyResetMs ? ` · ${formatResetCountdown(this.weeklyResetMs)}` : ''}`;
+			}
 			if (this.lastCachedUntilMs && this.lastCachedUntilMs > now) {
 				const secs = Math.max(0, Math.ceil((this.lastCachedUntilMs - now) / 1000));
 				if (this.cacheTimeSpan) this.cacheTimeSpan.textContent = formatSeconds(secs);

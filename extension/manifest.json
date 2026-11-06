@@ -1,50 +1,53 @@
 {
   "manifest_version": 3,
   "name": "Claude Counter",
-  "version": "0.1.4",
-  "browser_specific_settings": {
-    "gecko": {
-      "id": "{236c6889-52b6-4454-bc4b-5a2ad18effa2}",
-      "strict_min_version": "115.0",
-      "data_collection_permissions": {
-        "required": [
-          "none"
-        ]
-      }
-    }
-  },
-  "background": {
-    "service_worker": "src/background.js"
-  },
-  "description": "Shows ~token count, cache timer, and native session/weekly usage bars on claude.ai.",
-  "permissions": [
-    "storage"
-  ],
+  "short_name": "Claude Counter",
+  "version": "1.0.0",
+  "description": "Real session and weekly usage limits, plan, and an estimated token count for claude.ai. For Chrome, Edge and Brave.",
+  "author": "rishavm003",
+  "homepage_url": "https://github.com/rishavm003/claude-counter",
+  "minimum_chrome_version": "111",
   "icons": {
-    "16": "assets/icon16.png",
-    "32": "assets/icon32.png",
-    "48": "assets/icon48.png",
-    "96": "assets/icon96.png",
-    "128": "assets/icon128.png",
-    "256": "assets/icon256.png"
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "96": "icons/icon-96.png",
+    "128": "icons/icon-128.png",
+    "256": "icons/icon-256.png"
   },
   "action": {
     "default_title": "Claude Counter",
     "default_icon": {
-      "16": "assets/icon16.png",
-      "32": "assets/icon32.png",
-      "48": "assets/icon48.png",
-      "96": "assets/icon96.png",
-      "128": "assets/icon128.png"
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "96": "icons/icon-96.png",
+      "128": "icons/icon-128.png"
     }
   },
+  "background": {
+    "service_worker": "src/background/service-worker.js"
+  },
+  "permissions": [
+    "storage"
+  ],
   "content_scripts": [
     {
       "matches": [
         "https://claude.ai/*"
       ],
+      "js": [
+        "src/page/page-bridge.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://claude.ai/*"
+      ],
       "css": [
-        "src/styles.css"
+        "src/content/content.css"
       ],
       "js": [
         "src/content/constants.js",
@@ -67,7 +70,7 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "src/injected/bridge.js"
+        "src/page/page-bridge.js"
       ],
       "matches": [
         "https://claude.ai/*"

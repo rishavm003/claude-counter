@@ -281,18 +281,18 @@
                 </div>
                 <div class="card">
                     <h4><code>src/content/tokens.js</code></h4>
-                    <p>Handles evaluating conversation histories. Uses the loaded OpenAI/Anthropic tokenizers (`o200k_base.js`) locally to measure payload size and calculate specific breakdowns of tool use vs exact input strings in the current context.</p>
+                    <p>Handles evaluating conversation histories. Uses a compact local estimator to measure payload size and calculate breakdowns of text, attachments, and tool content in the current context.</p>
                 </div>
                 <div class="card">
                     <h4><code>src/content/bridge-client.js</code></h4>
                     <p>A structured Promise-based RPC client inside the locked-down content world. Issues deterministic requests (like fetching a specific conversation history tree) to `bridge.js` while maintaining a pending queue with timeouts.</p>
                 </div>
                 <div class="card">
-                    <h4><code>src/injected/bridge.js</code></h4>
+                    <h4><code>src/page/page-bridge.js</code></h4>
                     <p>Runs directly within the Claude.ai global object (`window`). It wraps `window.fetch`, `history.pushState`, and `history.replaceState`. This captures raw Event Streams for LLM generations directly observing Time-To-First-Token (TTFT) and data packets before React swallows them.</p>
                 </div>
                 <div class="card">
-                    <h4><code>src/background.js</code></h4>
+                    <h4><code>src/background/service-worker.js</code></h4>
                     <p>A minimal Service Worker. Responsible only for dispatching system-level push notifications to the OS using `chrome.notifications` when a usage threshold (like 80% or 95%) is breached, and handling keyboard shortcuts.</p>
                 </div>
             </div>
@@ -341,12 +341,12 @@ function waitForElement(selector, timeoutMs) {
                     <p>The entire extension logic, UI manipulation, and event handling is built entirely without frontend frameworks like React or Vue to maintain maximum performance and the smallest possible bundle footprint.</p>
                 </div>
                 <div class="card">
-                    <h4><code>Chrome Extension APIs (MV3)</code></h4>
-                    <p>Utilizes Manifest V3 architecture. Includes background service workers (`chrome.runtime`), local storage (`chrome.storage.local`), and native system notifications (`chrome.notifications`).</p>
+                    <h4><code>Chromium Extension APIs (MV3)</code></h4>
+                    <p>Utilizes Manifest V3 architecture supported by Chrome and Microsoft Edge. Includes background service workers (`chrome.runtime`) and local storage (`chrome.storage.local`).</p>
                 </div>
                 <div class="card">
-                    <h4><code>o200k_base Tokenizer</code></h4>
-                    <p>Local loading of the official tokenizer script (`vendor/o200k_base.js`) ensures identical token measurements to the actual Claude backend natively in the browser without external API calls.</p>
+                    <h4><code>Local Token Estimator</code></h4>
+                    <p>A lightweight local estimator keeps the package small while giving users a useful context-size signal without external API calls.</p>
                 </div>
                 <div class="card">
                     <h4><code>MutationObserver API</code></h4>
@@ -372,7 +372,7 @@ function waitForElement(selector, timeoutMs) {
             <div class="arch-diagram">
                 <div class="arch-row" style="flex-direction: column; gap: 20px;">
                     <div style="background: rgba(239, 68, 68, 0.1); border-left: 4px solid var(--danger); padding: 16px;">
-                        <strong>Challenge: Escaping the Chrome Extension Sandbox</strong><br>
+                        <strong>Challenge: Escaping the Chromium Extension Sandbox</strong><br>
                         <span style="color: var(--text-muted); font-size: 0.95em;">Standard Content Scripts in Manifest V3 are executed in "Isolated Worlds". They share the DOM with the host page but CANNOT read the JavaScript variables or see native `window` properties on the webpage. Hooking `window.fetch` securely is impossible from a content script.</span>
                     </div>
                     <div style="background: rgba(34, 197, 94, 0.1); border-left: 4px solid var(--success); padding: 16px;">

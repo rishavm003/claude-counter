@@ -1,40 +1,26 @@
+# Release checks: one version everywhere, required files present.
+# Usage: ./scripts/check-release.ps1 [-Version 1.2.3]
+
 param(
-    [string]$Version = "0.1.4"
+    [string]$Version = (Get-Content -Raw "$PSScriptRoot/../extension/manifest.json" | ConvertFrom-Json).version
 )
 
 $ErrorActionPreference = "Stop"
 $RootDir = Split-Path $PSScriptRoot -Parent
-$ManifestPath = Join-Path $RootDir "extension\manifest.json"
-$ReadmePath = Join-Path $RootDir "README.md"
-$ProjectStructurePath = Join-Path $RootDir "PROJECT_STRUCTURE.md"
 
-$manifest = Get-Content -Raw -Path $ManifestPath | ConvertFrom-Json
-if ($manifest.version -ne $Version) {
-    throw "Manifest version '$($manifest.version)' does not match release version '$Version'."
+if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw "Version '$Version' is not MAJOR.MINOR.PATCH." }
+
+$manifest = Get-Content -Raw (Join-Path $RootDir "extension/manifest.json") | ConvertFrom-Json
+$package  = Get-Content -Raw (Join-Path $RootDir "package.json") | ConvertFrom-Json
+if ($manifest.version -ne $Version) { throw "extension/manifest.json is $($manifest.version), expected $Version." }
+if ($package.version  -ne $Version) { throw "package.json is $($package.version), expected $Version." }
+if ($manifest.manifest_version -ne 3) { throw "Chrome/Edge/Brave need a Manifest V3 extension." }
+
+foreach ($size in 16, 32, 48, 96, 128, 256) {
+    if (!(Test-Path (Join-Path $RootDir "extension/icons/icon-$size.png"))) { throw "Missing extension/icons/icon-$size.png" }
+}
+foreach ($doc in "README.md", "CHANGELOG.md") {
+    if ((Get-Content -Raw (Join-Path $RootDir $doc)) -notmatch [regex]::Escape($Version)) { throw "$doc does not mention $Version." }
 }
 
-$readme = Get-Content -Raw -Path $ReadmePath
-if ($readme -notmatch [regex]::Escape($Version)) {
-    throw "README.md does not mention release version '$Version'."
-}
-
-$structure = Get-Content -Raw -Path $ProjectStructurePath
-if ($structure -notmatch [regex]::Escape($Version)) {
-    throw "PROJECT_STRUCTURE.md does not mention release version '$Version'."
-}
-
-$forbidden = @(
-    "vendor/o200k_base",
-    "vendor\o200k_base",
-    "claude-counter-v0.4.2-latest.zip"
-)
-
-foreach ($needle in $forbidden) {
-    foreach ($path in @($ReadmePath, $ProjectStructurePath, (Join-Path $RootDir "scripts\build-release.ps1"), $ManifestPath)) {
-        if ((Get-Content -Raw -Path $path) -like "*$needle*") {
-            throw "Forbidden stale release reference '$needle' found in $path."
-        }
-    }
-}
-
-Write-Host "Release checklist passed for v$Version." -ForegroundColor Green
+Write-Host "Release checks passed for v$Version." -ForegroundColor Green

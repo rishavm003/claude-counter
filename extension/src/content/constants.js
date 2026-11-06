@@ -15,20 +15,23 @@
 	CC.CONST = Object.freeze({
 		CACHE_WINDOW_MS: 5 * 60 * 1000,
 		DEFAULT_CONTEXT_LIMIT: 200000,
-		MODEL_CONTEXT_MAP: {
-			'Sonnet 4.6': 200000,
-			'Claude 3.5 Sonnet': 200000,
-			'Claude 3.5 Haiku': 200000,
-			'Claude 3 Opus': 200000,
-			'Claude 3 Sonnet': 200000,
-			'Claude 3 Haiku': 200000
-		},
-		MODEL_PRICE_MAP: {
-			'Opus': { input: 15, output: 75 },
-			'Sonnet': { input: 3, output: 15 },
-			'Haiku': { input: 0.25, output: 1.25 },
-			'Default': { input: 3, output: 15 }
-		}
+		// Matched (in order) against the conversation's model id, e.g. "claude-opus-5-5".
+		// context = context window assumed on claude.ai (override in Settings if your plan differs).
+		// input/output = Anthropic API list price, USD per 1M tokens (Nov 2026; used only for the
+		// "API-equivalent" estimate — Pro/Max subscribers are NOT billed per token).
+		MODEL_INFO: [
+			{ match: /fable/i,               label: 'Fable',      context: 200000, input: 10,   output: 50 },
+			{ match: /mythos/i,              label: 'Mythos',     context: 200000, input: 10,   output: 50 },
+			{ match: /opus-5/i,              label: 'Opus 5.x',   context: 200000, input: 4,    output: 20 },
+			{ match: /sonnet-5/i,            label: 'Sonnet 5.x', context: 200000, input: 2,    output: 10 },
+			{ match: /haiku-5/i,             label: 'Haiku 5.x',  context: 200000, input: 0.1,  output: 0.5 },
+			{ match: /opus-4-[5-9]/i,        label: 'Opus 4.x',   context: 200000, input: 5,    output: 25 },
+			{ match: /opus/i,                label: 'Opus',       context: 200000, input: 15,   output: 75 },
+			{ match: /sonnet/i,              label: 'Sonnet',     context: 200000, input: 3,    output: 15 },
+			{ match: /haiku-4/i,             label: 'Haiku 4.x',  context: 200000, input: 1,    output: 5 },
+			{ match: /haiku/i,               label: 'Haiku',      context: 200000, input: 0.8,  output: 4 }
+		],
+		DEFAULT_MODEL_INFO: { label: 'Unknown model', context: 200000, input: 3, output: 15 }
 	});
 
 	CC.COLORS = Object.freeze({

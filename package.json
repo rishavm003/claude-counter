@@ -1,0 +1,20 @@
+{
+  "name": "claude-counter",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Browser extension for Chrome, Edge and Brave showing real claude.ai usage limits and an estimated token count.",
+  "author": "rishavm003",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rishavm003/claude-counter.git"
+  },
+  "scripts": {
+    "test": "node tests/run-regression.js",
+    "build": "pwsh ./scripts/build.ps1",
+    "check": "pwsh ./scripts/check-release.ps1"
+  },
+  "devDependencies": {
+    "playwright": "^1.48.0"
+  }
+}

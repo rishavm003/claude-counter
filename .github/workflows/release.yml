@@ -15,30 +15,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Create Extension ZIP (Chrome/Edge)
+      - name: Validate release metadata
+        shell: pwsh
+        run: ./scripts/check-release.ps1 -Version "${GITHUB_REF_NAME#v}"
+
+      - name: Create extension ZIP (Chrome / Edge / Brave)
         run: |
           cd extension
           zip -r ../claude-counter-${GITHUB_REF_NAME#v}.zip .
-          cd ..
 
-      - name: Create Extension XPI (Firefox)
-        run: |
-          cd extension
-          zip -r ../claude-counter-${GITHUB_REF_NAME#v}.xpi .
-          cd ..
-
-      - name: Create Source ZIP
-        run: |
-          zip -r claude-counter-${GITHUB_REF_NAME#v}-source.zip \
-            extension/ assets/ docs/ userscript/ scripts/ .github/ \
-            README.md PROJECT_STRUCTURE.md .gitignore
-
-      - name: Create Release
+      - name: Create release
         uses: softprops/action-gh-release@v1
         with:
-          files: |
-            claude-counter-*.zip
-            claude-counter-*.xpi
+          files: claude-counter-*.zip
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

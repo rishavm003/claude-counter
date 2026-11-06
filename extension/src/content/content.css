@@ -1,13 +1,15 @@
 .cc-header {
 	position: fixed;
 	top: 12px;
-	right: 160px; /* Shifted left to avoid covering content/details below */
+	left: 50%;
+	transform: translateX(-50%);
 	display: flex;
 	flex-direction: row;
 	align-items: center;
 	gap: 12px;
 	padding: 6px 12px;
 	background: rgba(30, 30, 30, 0.85);
+	-webkit-backdrop-filter: blur(12px);
 	backdrop-filter: blur(12px);
 	border: 1px solid rgba(255, 255, 255, 0.1);
 	border-radius: 20px;
@@ -16,7 +18,11 @@
 	font-size: 11px;
 	color: var(--text-text-400);
 	user-select: none;
-	transition: opacity 0.3s;
+	transition: opacity 0.3s, left 0.3s cubic-bezier(0.4, 0, 0.2, 1); /* Smooth transition when shifting */
+}
+
+.cc-header.cc-sidebar-open {
+	left: calc(50% + 130px); /* Shifted to center relative to remaining width when sidebar is open */
 }
 
 .cc-header:empty { display: none; }
@@ -33,6 +39,7 @@
 	background: rgba(30, 30, 30, 0.95) !important;
 	border-radius: 12px;
 	border: 1px solid rgba(255, 255, 255, 0.1);
+	-webkit-backdrop-filter: blur(12px);
 	backdrop-filter: blur(12px);
 	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 	z-index: 99999 !important;
@@ -66,9 +73,9 @@
 .cc-usageText {
 	font-size: 11px;
 	font-weight: 500;
-	opacity: 0.8;
+	opacity: 0.9;
 	white-space: nowrap;
-	color: var(--text-text-400);
+	color: #e5e5e5 !important;
 }
 
 /* Bars */
@@ -194,6 +201,7 @@
 	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 	padding: 16px;
 	z-index: 10001;
+	-webkit-backdrop-filter: blur(16px);
 	backdrop-filter: blur(16px);
 	font-size: 11px;
 	display: flex;
@@ -250,6 +258,7 @@
 	box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
 	z-index: 10000;
 	padding: 24px;
+	-webkit-backdrop-filter: blur(24px);
 	backdrop-filter: blur(24px);
 }
 
@@ -262,6 +271,7 @@
 	position: fixed;
 	inset: 0;
 	background: rgba(0, 0, 0, 0.55);
+	-webkit-backdrop-filter: blur(4px);
 	backdrop-filter: blur(4px);
 	z-index: 9999;
 }
@@ -416,4 +426,21 @@
 		animation: none !important;
 		transition: none !important;
 	}
+}
+
+/* Plan badge (Free / Pro / Max) and extra usage row */
+.cc-plan-badge {
+	font-size: 10px;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+	padding: 1px 6px;
+	border-radius: 999px;
+	border: 1px solid currentColor;
+	opacity: 0.75;
+	white-space: nowrap;
+	align-self: center;
+}
+.cc-usageExtra {
+	opacity: 0.8;
+	white-space: nowrap;
 }

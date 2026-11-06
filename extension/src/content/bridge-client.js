@@ -80,10 +80,6 @@
 		async requestConversation(orgId, conversationId) {
 			return this.request('conversation', { orgId, conversationId }, { timeoutMs: 20000 });
 		}
-
-		async requestHash(text) {
-			return this.request('hash', { text }, { timeoutMs: 5000 });
-		}
 	}
 
 	let bridgeReadyPromise = null;
@@ -94,14 +90,14 @@
 		const runtime = getRuntime();
 		if (!runtime) return Promise.resolve(false);
 
-		if (document.getElementById(CC.DOM.BRIDGE_SCRIPT_ID)) {
+		if (globalThis.__ccBridgeLoaded || document.getElementById(CC.DOM.BRIDGE_SCRIPT_ID) || document.documentElement?.hasAttribute('data-cc-bridge')) {
 			return Promise.resolve(true);
 		}
 
 		bridgeReadyPromise = new Promise((resolve) => {
 			const script = document.createElement('script');
 			script.id = CC.DOM.BRIDGE_SCRIPT_ID;
-			script.src = runtime.getURL('src/injected/bridge.js');
+			script.src = runtime.getURL('src/page/page-bridge.js');
 			script.onload = () => resolve(true);
 			script.onerror = () => resolve(false);
 			(document.head || document.documentElement).appendChild(script);

@@ -29,11 +29,32 @@
 		}
 	}
 
+	// Wide (CJK / Hangul / Kana) characters are ~1 token each; everything else is estimated
+	// from characters and words. This is still an ESTIMATE (no exact Claude tokenizer is bundled);
+	// expect roughly ±15% on English prose and more drift on code or other scripts.
+	const WIDE_CHAR_RE = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af\uf900-\ufaff]/g;
+
 	function countTokens(text) {
 		if (!text) return 0;
-		// Use a lightweight heuristic since the 2MB exact tokenizer was removed for size.
-		// On average, 1 token is ~3.5 to 4 English characters.
-		return Math.ceil(text.length / 3.5);
+		const wide = (text.match(WIDE_CHAR_RE) || []).length;
+		const rest = text.length - wide;
+		if (rest <= 0) return wide;
+		const restText = wide ? text.replace(WIDE_CHAR_RE, ' ') : text;
+		const words = (restText.match(/\S+/g) || []).length;
+		// Blend char-based (~3.6 chars/token) and word-based (~1.33 tokens/word) estimates.
+		const byChars = rest / 3.6;
+		const byWords = words * 1.33;
+		return wide + Math.ceil((byChars + byWords) / 2);
+	}
+
+	function getModelInfo(modelId) {
+		const id = String(modelId || '');
+		if (id) {
+			for (const info of CC.CONST.MODEL_INFO || []) {
+				if (info.match.test(id)) return { ...info, id };
+			}
+		}
+		return { ...CC.CONST.DEFAULT_MODEL_INFO, id: id || null };
 	}
 
 	function buildTrunk(conversation) {
@@ -47,7 +68,7 @@
 		if (!leaf) return [];
 
 		const trunk = [];
-		// Bug #13 fix: guard against cyclic parent references in malformed conversation data.
+		// guard against cyclic parent references in malformed conversation data.
 		const seen = new Set();
 		let currentId = leaf;
 		while (currentId && currentId !== ROOT_MESSAGE_ID) {
@@ -128,54 +149,8 @@
 		return parts.join('\n');
 	}
 
-	async function hashString(str) {
-		if (!CC.bridge?.requestHash) return null;
-		try {
-			const res = await CC.bridge.requestHash(str);
-			if (res?.hash) return res.hash;
-		} catch {
-			// No local hashing fallback.
-		}
-		return null;
-	}
-
-	async function fingerprint(text) {
-		if (!text) return null;
-		const hash = await hashString(text);
-		if (!hash) return null;
-		return `${text.length}:${hash}`;
-	}
-
-	class TokenCache {
-		constructor() {
-			this._byMessageId = new Map(); // uuid -> { fp, tokens }
-		}
-
-		async getMessageTokens(messageId, messageText) {
-			const fp = await fingerprint(messageText);
-			if (!fp) return countTokens(messageText);
-			const cached = this._byMessageId.get(messageId);
-			if (cached && cached.fp === fp) return cached.tokens;
-
-			const tokens = countTokens(messageText);
-			this._byMessageId.set(messageId, { fp, tokens });
-			return tokens;
-		}
-
-		pruneToMessageIds(keepIds) {
-			const keep = new Set(keepIds);
-			for (const id of this._byMessageId.keys()) {
-				if (!keep.has(id)) this._byMessageId.delete(id);
-			}
-		}
-	}
-
-	const tokenCache = new TokenCache();
-
 	async function computeConversationMetrics(conversation) {
 		const trunk = buildTrunk(conversation);
-		const trunkIds = trunk.map((m) => m.uuid).filter(Boolean);
-		tokenCache.pruneToMessageIds(trunkIds);
 
 		let totalTokens = 0;
 		let textTokens = 0;
@@ -183,10 +158,17 @@
 		let toolTokens = 0;
 		const perMessageTokens = {};
 		let lastAssistantMs = null;
+		let uncountedFiles = 0;
+		// API-equivalent accounting: every assistant turn re-reads the whole context before it.
+		let runningContext = 0;
+		let apiInputTokens = 0;
+		let apiOutputTokens = 0;
 
 		for (const msg of trunk) {
-			if (msg?.sender === 'assistant' && msg?.created_at) {
-				const msgMs = Date.parse(msg.created_at);
+			// Use updated_at (when the reply finished) — the cache clock starts after the response.
+			const stamp = msg?.updated_at || msg?.created_at;
+			if (msg?.sender === 'assistant' && stamp) {
+				const msgMs = Date.parse(stamp);
 				if (!lastAssistantMs || msgMs > lastAssistantMs) {
 					lastAssistantMs = msgMs;
 				}
@@ -217,7 +199,16 @@
 				}
 			}
 
+			// Images / PDFs uploaded as files carry no text we can count.
+			if (Array.isArray(msg?.files)) uncountedFiles += msg.files.length;
+			if (Array.isArray(msg?.files_v2)) uncountedFiles += msg.files_v2.length;
+
 			const msgTotal = msgTextTokens + msgToolTokens + msgAttachmentTokens;
+			if (msg?.sender === 'assistant') {
+				apiInputTokens += runningContext;
+				apiOutputTokens += msgTotal;
+			}
+			runningContext += msgTotal;
 			totalTokens += msgTotal;
 			textTokens += msgTextTokens;
 			toolTokens += msgToolTokens;
@@ -230,7 +221,13 @@
 
 		const cachedUntil = lastAssistantMs ? lastAssistantMs + CC.CONST.CACHE_WINDOW_MS : null;
 
+		const model = getModelInfo(conversation?.model);
+
 		return {
+			model,
+			uncountedFiles,
+			apiInputTokens,
+			apiOutputTokens,
 			trunkMessageCount: trunk.length,
 			totalTokens,
 			inputTokens: trunk.reduce((acc, m) => m.sender === 'user' ? acc + (perMessageTokens[m.uuid] || 0) : acc, 0),
@@ -246,5 +243,5 @@
 		};
 	}
 
-	CC.tokens = { computeConversationMetrics, countTokens };
+	CC.tokens = { computeConversationMetrics, countTokens, getModelInfo };
 })();

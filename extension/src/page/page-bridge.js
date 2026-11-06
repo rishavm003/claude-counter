@@ -3,6 +3,20 @@
 
 	const CC_MARKER = 'ClaudeCounter';
 
+	// Loaded either as a MAIN-world content script (Chrome/Edge/Brave 111+) or injected
+	// with a <script> tag (fallback). Never run twice.
+	if (window.__ccBridgeLoaded) return;
+	window.__ccBridgeLoaded = true;
+	// At document_start <html> may not exist yet (early userscript injection): mark it once it does.
+	(function markLoaded() {
+		if (document.documentElement) document.documentElement.setAttribute('data-cc-bridge', '1');
+		else new MutationObserver((_, obs) => {
+			if (!document.documentElement) return;
+			obs.disconnect();
+			document.documentElement.setAttribute('data-cc-bridge', '1');
+		}).observe(document, { childList: true });
+	})();
+
 	// Capture original fetch before anyone else can wrap it
 	const originalFetch = window.fetch;
 
@@ -28,6 +42,13 @@
 	window.fetch = async (...args) => {
 		const url = toAbsoluteUrl(args[0]);
 		const opts = args[1] || {};
+
+		if (url) {
+			const orgMatch = url.match(/\/api\/organizations\/([^/?#]+)/);
+			if (orgMatch && orgMatch[1] && orgMatch[1] !== 'undefined') {
+				window.CC_LAST_ORG_ID = orgMatch[1];
+			}
+		}
 
 		// Detect generation start (completion requests and message appends)
 		const isCompletion = url.includes('/completion') || url.includes('/retry_completion') || url.includes('/append_message');
@@ -117,12 +138,6 @@
 					break;
 				}
 
-				if (!ttftEmitted && generationStartTime) {
-					const now = Date.now();
-					post('cc:ttft', { ttft: now - generationStartTime });
-					ttftEmitted = true;
-				}
-
 				buffer += decoder.decode(value, { stream: true });
 				const lines = buffer.split(/\r\n|\r|\n/);
 				buffer = lines.pop() || '';
@@ -133,6 +148,11 @@
 					try {
 						const json = JSON.parse(raw);
 						if (json?.type === 'content_block_delta' && json.delta?.text) {
+							// TTFT = time until the first visible text token (not the first network byte)
+							if (!ttftEmitted && generationStartTime) {
+								post('cc:ttft', { ttft: Date.now() - generationStartTime });
+								ttftEmitted = true;
+							}
 							post('cc:chunk', { text: json.delta.text });
 						}
 						if (json?.type === 'message_limit' && json.message_limit) {
@@ -148,7 +168,55 @@
 		}
 	}
 
-	console.log('[Claude Counter] Bridge script injected and running');
+
+	let cachedOrgs = null;
+
+	function getCookie(name) {
+		try {
+			return document.cookie.split('; ').find((r) => r.startsWith(name + '='))?.split('=')[1] || null;
+		} catch {
+			return null;
+		}
+	}
+
+	async function loadOrgs(force = false) {
+		if (cachedOrgs && !force) return cachedOrgs;
+		const res = await originalFetch('https://claude.ai/api/organizations', { credentials: 'include' });
+		if (!res.ok) throw new Error(`HTTP ${res.status}`);
+		const orgs = await res.json();
+		cachedOrgs = Array.isArray(orgs) ? orgs : [];
+		return cachedOrgs;
+	}
+
+	function isChatOrg(o) {
+		return Array.isArray(o?.capabilities) && o.capabilities.includes('chat');
+	}
+
+	/** Pick the claude.ai chat org: lastActiveOrg cookie > first org with 'chat' capability > first org. */
+	function pickChatOrg(orgs) {
+		if (!Array.isArray(orgs) || orgs.length === 0) return null;
+		const cookieId = getCookie('lastActiveOrg');
+		const byCookie = cookieId && orgs.find((o) => (o.uuid || o.id) === cookieId);
+		if (byCookie && isChatOrg(byCookie)) return byCookie;
+		return orgs.find(isChatOrg) || byCookie || orgs[0];
+	}
+
+	/** Derive the subscription plan from org metadata (capabilities / rate_limit_tier). */
+	function planFromOrg(o) {
+		if (!o) return null;
+		const caps = Array.isArray(o.capabilities) ? o.capabilities : [];
+		const tier = String(o.rate_limit_tier || '');
+		let name = 'Free';
+		if (caps.includes('claude_max') || /max/i.test(tier)) {
+			name = /20x/i.test(tier) ? 'Max 20x' : /5x/i.test(tier) ? 'Max 5x' : 'Max';
+		} else if (caps.includes('claude_pro')) {
+			name = 'Pro';
+		} else if (caps.some((c) => /raven|team|enterprise/i.test(c)) || o.raven_type) {
+			name = 'Team/Enterprise';
+		}
+		if (o.plan_display_name) name = o.plan_display_name;
+		return { name, tier, capabilities: caps };
+	}
 	// Try to find orgId immediately on load
 	async function discoverOrgId() {
 		try {
@@ -161,31 +229,26 @@
 							  json?.props?.pageProps?.account?.id;
 				if (orgId) {
 					window.CC_LAST_ORG_ID = orgId;
-					console.log('[Claude Counter] Detected OrgId from state:', orgId);
 					return orgId;
 				}
 			}
 
-			// 2. Try API fallback
-			console.log('[Claude Counter] OrgId not in state, fetching via API...');
-			const res = await originalFetch('https://claude.ai/api/organizations', { credentials: 'include' });
-			// Bug #7 fix: check HTTP status before parsing JSON
-			if (!res.ok) throw new Error(`HTTP ${res.status}`);
-			const orgs = await res.json();
-			if (Array.isArray(orgs) && orgs.length > 0) {
-				const orgId = orgs[0].uuid || orgs[0].id;
+			// 2. Try API fallback (pick the chat org, not blindly orgs[0])
+			const orgs = await loadOrgs();
+			const chosen = pickChatOrg(orgs);
+			if (chosen) {
+				const orgId = chosen.uuid || chosen.id;
 				window.CC_LAST_ORG_ID = orgId;
-				console.log('[Claude Counter] Found OrgId via API:', orgId);
 				return orgId;
 			}
 		} catch (e) {
-			console.log('[Claude Counter] OrgId discovery failed:', e);
 		}
 		return null;
 	}
 
 	discoverOrgId().then(id => {
-		if (id) window.dispatchEvent(new CustomEvent('cc:org_ready', { detail: { orgId: id } }));
+		// postMessage, not CustomEvent.detail: Firefox hides page-created objects from content scripts.
+		if (id) post('cc:org_ready', { orgId: id });
 	});
 
 	window.addEventListener('message', async (event) => {
@@ -196,35 +259,48 @@
 
 		const { requestId, kind, payload } = data;
 		try {
-			if (kind === 'hash') {
-				const text = typeof payload?.text === 'string' ? payload.text : '';
-				if (!text || !crypto?.subtle?.digest) {
-					postResponse(requestId, false, null, 'Hash unavailable');
-					return;
-				}
-				const buffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
-				const bytes = new Uint8Array(buffer);
-				const hash = Array.from(bytes.slice(0, 8), (b) => b.toString(16).padStart(2, '0')).join('');
-				postResponse(requestId, true, { hash }, null);
-				return;
-			}
-
 			if (kind === 'usage') {
-				const orgId = payload?.orgId;
+				let orgId = payload?.orgId || window.CC_LAST_ORG_ID;
+				if (!orgId) orgId = await discoverOrgId();
 				if (!orgId) throw new Error('Missing orgId');
-				const res = await originalFetch(`https://claude.ai/api/organizations/${orgId}/usage`, {
+				const fetchUsage = (id) => originalFetch(`https://claude.ai/api/organizations/${id}/usage`, {
 					method: 'GET',
 					credentials: 'include'
 				});
-				// Bug #7 fix: check HTTP status before parsing JSON
+				let res = await fetchUsage(orgId);
+				// A non-chat (API console) org returns 403 here — fall back to the real chat org.
+				if (res.status === 403 || res.status === 404) {
+					try {
+						const chat = pickChatOrg(await loadOrgs());
+						const chatId = chat && (chat.uuid || chat.id);
+						if (chatId && chatId !== orgId) {
+							orgId = chatId;
+							window.CC_LAST_ORG_ID = chatId;
+							res = await fetchUsage(orgId);
+						}
+					} catch {
+						// keep original response
+					}
+				}
+				// check HTTP status before parsing JSON
 				if (!res.ok) throw new Error(`HTTP ${res.status} fetching usage`);
 				const json = await res.json();
+				if (json && typeof json === 'object') {
+					json._orgId = orgId;
+					try {
+						const orgs = await loadOrgs();
+						json._plan = planFromOrg(orgs.find((o) => (o.uuid || o.id) === orgId));
+					} catch {
+						json._plan = null;
+					}
+				}
 				postResponse(requestId, true, json, null);
 				return;
 			}
 
 			if (kind === 'conversation') {
-				const orgId = payload?.orgId;
+				let orgId = payload?.orgId || window.CC_LAST_ORG_ID;
+				if (!orgId) orgId = await discoverOrgId();
 				const conversationId = payload?.conversationId;
 				if (!orgId || !conversationId) throw new Error('Missing orgId/conversationId');
 
@@ -233,7 +309,7 @@
 					method: 'GET',
 					credentials: 'include'
 				});
-				// Bug #7 fix: check HTTP status before parsing JSON
+				// check HTTP status before parsing JSON
 				if (!res.ok) throw new Error(`HTTP ${res.status} fetching conversation`);
 				const json = await res.json();
 				post('cc:conversation', { orgId, conversationId, data: json });

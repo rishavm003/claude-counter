@@ -2,7 +2,6 @@
 	'use strict';
 
 	const CC = (globalThis.ClaudeCounter = globalThis.ClaudeCounter || {});
-	console.log('[Claude Counter] Content script loading...');
 	if (CC.__started) return;
 	CC.__started = true;
 
@@ -13,17 +12,14 @@
 
 	function isChatOrNewPage() {
 		const path = window.location.pathname;
-		// Bug #15 fix: was path.includes('/chat') which matches any URL containing 'chat'.
-		// Use strict regex: must be /chat/<id> or exactly /new.
-		return /^\/new$|^\/new\/|^\/chat\//.test(path);
+		return /^\/$|^\/new$|^\/new\/|^\/chat\/|^\/project\//.test(path);
 	}
 
 	function getOrgIdFromUrl() {
 		const pathMatch = window.location.pathname.match(/\/organizations\/([^/]+)/);
 		if (pathMatch) return pathMatch[1];
 		
-		// Fallback: Check for stored orgId (bridge finds it in state)
-		return globalThis.CC_LAST_ORG_ID || null;
+		return null;
 	}
 
 	function getOrgIdFromCookie() {
@@ -88,7 +84,7 @@
 						observer.observe(document.body, { childList: true, subtree: true });
 					}
 				});
-				bodyWatcher.observe(document.documentElement, { childList: true });
+				bodyWatcher.observe(document, { childList: true, subtree: true });
 			} else {
 				observer.observe(document.body, { childList: true, subtree: true });
 			}
@@ -119,60 +115,161 @@
 		// Also popstate for back/forward buttons
 		window.addEventListener('popstate', fireIfChanged);
 		
-		// Named handler so it can be removed on cleanup
-		function onOrgReady(e) {
-			if (e.detail?.orgId && e.detail.orgId !== currentOrgId) {
-				console.log('[Claude Counter] OrgId ready event received:', e.detail.orgId);
-				updateOrgIdIfNeeded(e.detail.orgId);
+		const offOrgReady = CC.bridge.on('cc:org_ready', (payload) => {
+			if (payload?.orgId && payload.orgId !== currentOrgId) {
+				updateOrgIdIfNeeded(payload.orgId);
 				refreshUsage();
 			}
-		}
-		window.addEventListener('cc:org_ready', onOrgReady);
+		});
 
 		return () => {
 			window.removeEventListener('cc:urlchange', fireIfChanged);
 			window.removeEventListener('popstate', fireIfChanged);
-			window.removeEventListener('cc:org_ready', onOrgReady);
+			offOrgReady();
 		};
 	}
 
-	function parseUsageFromUsageEndpoint(raw) {
+	/**
+	 * Parse claude.ai's /api/organizations/{org}/usage response.
+	 * NOTE: `utilization` / `percent` there are already 0–100 percentages (e.g. 1 means 1%).
+	 * The old code multiplied any value <= 1 by 100, which displayed 1% usage as 100%.
+	 */
+	function parseUsage(raw) {
 		if (!raw || typeof raw !== 'object') return null;
 
-		const normalizeWindow = (w, hours) => {
+		const toIso = (rawReset) => {
+			if (typeof rawReset === 'string') return rawReset;
+			if (typeof rawReset === 'number' && Number.isFinite(rawReset)) {
+				return new Date(rawReset < 1e11 ? rawReset * 1000 : rawReset).toISOString();
+			}
+			return null;
+		};
+		const clampPct = (v) => Math.max(0, Math.min(100, v));
+
+		const extractWindow = (w, hours) => {
 			if (!w || typeof w !== 'object') return null;
-			if (typeof w.utilization !== 'number' || !Number.isFinite(w.utilization)) return null;
-			const utilization = Math.max(0, Math.min(100, w.utilization));
-			const resets_at = typeof w.resets_at === 'string' ? w.resets_at : null;
-			return { utilization, resets_at, window_hours: hours };
+			let util = w.utilization ?? w.percent ?? w.used_percentage ?? w.percentage;
+			if (util == null && typeof w.used === 'number' && typeof w.limit === 'number' && w.limit > 0) {
+				util = (w.used / w.limit) * 100;
+			}
+			if (util == null && typeof w.remaining === 'number' && typeof w.limit === 'number' && w.limit > 0) {
+				util = ((w.limit - w.remaining) / w.limit) * 100;
+			}
+			if (typeof util !== 'number' || !Number.isFinite(util)) return null;
+			return {
+				utilization: clampPct(util),
+				resets_at: toIso(w.resets_at ?? w.reset_at ?? w.resetsAt ?? w.resetAt ?? null),
+				window_hours: hours,
+				severity: w.severity || null
+			};
 		};
 
-		const fiveHour = normalizeWindow(raw.five_hour, 5);
-		const sevenDay = normalizeWindow(raw.seven_day, 24 * 7);
+		// Newer responses carry a normalized `limits` array — prefer it when present.
+		const limits = Array.isArray(raw.limits) ? raw.limits : [];
+		const findLimit = (pred) => limits.find((l) => l && pred(l));
+		let fiveHour = extractWindow(findLimit((l) => l.kind === 'session' || l.group === 'session'), 5);
+		let sevenDay = extractWindow(findLimit((l) => l.kind === 'weekly_all'), 24 * 7);
+
+		const windowsObj = raw.windows || raw;
+		if (!fiveHour) {
+			fiveHour = extractWindow(
+				raw.five_hour || raw.five_hour_window || windowsObj['5h'] || windowsObj['5-hour'] || raw.session,
+				5
+			);
+		}
+		if (!sevenDay) {
+			sevenDay = extractWindow(
+				raw.seven_day || raw.seven_day_window || windowsObj['7d'] || windowsObj['7-day'] || raw.weekly,
+				24 * 7
+			);
+		}
+
+		// Extra weekly caps (Max plans: per-model weekly limits). Pro usually has none.
+		const extraWeekly = [];
+		const seen = new Set();
+		for (const l of limits) {
+			if (!l || l.group !== 'weekly' || l.kind === 'weekly_all') continue;
+			const w = extractWindow(l, 24 * 7);
+			if (!w) continue;
+			const label = String(l.kind || 'weekly').replace(/^weekly_/, '').replace(/_/g, ' ');
+			seen.add(label.toLowerCase());
+			extraWeekly.push({ label, ...w });
+		}
+		for (const [key, label] of [['seven_day_opus', 'opus'], ['seven_day_sonnet', 'sonnet']]) {
+			if (seen.has(label)) continue;
+			const w = extractWindow(raw[key], 24 * 7);
+			if (w) extraWeekly.push({ label, ...w });
+		}
+
+		// Paid "extra usage" credits (Pro/Max), only when the user enabled it.
+		let extraUsage = null;
+		const eu = raw.extra_usage;
+		if (eu && eu.is_enabled) {
+			const dp = Number.isFinite(eu.decimal_places) ? eu.decimal_places : 2;
+			const scale = Math.pow(10, dp);
+			extraUsage = {
+				used: typeof eu.used_credits === 'number' ? eu.used_credits / scale : null,
+				limit: typeof eu.monthly_limit === 'number' ? eu.monthly_limit / scale : null,
+				utilization: typeof eu.utilization === 'number' ? clampPct(eu.utilization) : null,
+				currency: eu.currency || 'USD',
+				spendLimitReached: !!eu.spend_limit_reached
+			};
+		}
+
+		// Which product used this week's quota (Chats / Claude Code / Cowork ...).
+		const breakdownRows = Array.isArray(raw.seven_day_breakdown?.rows)
+			? raw.seven_day_breakdown.rows
+				.filter((r) => typeof r?.percent === 'number')
+				.map((r) => ({ name: r.display_name || r.key, percent: r.percent }))
+			: [];
 
 		if (!fiveHour && !sevenDay) return null;
-		return { five_hour: fiveHour, seven_day: sevenDay };
-	}
-
-	function parseUsageFromMessageLimit(raw) {
-		if (!raw?.windows || typeof raw.windows !== 'object') return null;
-
-		const normalizeWindow = (w, hours) => {
-			if (!w || typeof w !== 'object') return null;
-			if (typeof w.utilization !== 'number' || !Number.isFinite(w.utilization)) return null;
-			const utilization = Math.max(0, Math.min(100, w.utilization * 100));
-			const resets_at = typeof w.resets_at === 'number' && Number.isFinite(w.resets_at)
-				? new Date(w.resets_at * 1000).toISOString()
-				: null;
-			return { utilization, resets_at, window_hours: hours };
+		return {
+			five_hour: fiveHour,
+			seven_day: sevenDay,
+			extra_weekly: extraWeekly,
+			extra_usage: extraUsage,
+			weekly_breakdown: breakdownRows,
+			plan: raw._plan || null
 		};
-
-		const fiveHour = normalizeWindow(raw.windows['5h'], 5);
-		const sevenDay = normalizeWindow(raw.windows['7d'], 24 * 7);
-
-		if (!fiveHour && !sevenDay) return null;
-		return { five_hour: fiveHour, seven_day: sevenDay };
 	}
+
+	function detectUsageFromDomBanner() {
+		try {
+			const bodyText = document.body?.innerText || '';
+			const match = bodyText.match(/(?:out of (?:free )?messages|out of usage|limit reached|reached your (?:\w+ )?limit)[^\n]{0,40}?(?:until|resets?(?: at)?)\s*([0-9]{1,2}(?::[0-9]{2})?\s*(?:AM|PM)?)/i);
+			if (match) {
+				const timeStr = match[1].trim();
+				let resetMs = null;
+				const parts = timeStr.match(/^([0-9]{1,2})(?::([0-9]{2}))?\s*(AM|PM)?$/i);
+				if (parts) {
+					let hrs = parseInt(parts[1], 10);
+					const mins = parts[2] ? parseInt(parts[2], 10) : 0;
+					const ampm = parts[3]?.toUpperCase();
+					if (ampm === 'PM' && hrs < 12) hrs += 12;
+					if (ampm === 'AM' && hrs === 12) hrs = 0;
+					const d = new Date();
+					d.setHours(hrs, mins, 0, 0);
+					if (d.getTime() <= Date.now()) {
+						d.setDate(d.getDate() + 1);
+					}
+					resetMs = d.getTime();
+				}
+				return {
+					five_hour: {
+						utilization: 100.0,
+						resets_at: resetMs ? new Date(resetMs).toISOString() : null,
+						window_hours: 5
+					},
+					seven_day: null
+				};
+			}
+		} catch {
+			// ignore
+		}
+		return null;
+	}
+
 
 	let currentConversationId = null;
 	let currentOrgId = null;
@@ -208,7 +305,10 @@
 
 	const ui = new CC.ui.CounterUI({
 		onUsageRefresh: async () => {
-			await refreshUsage();
+			await Promise.allSettled([
+				refreshUsage(),
+				refreshConversation()
+			]);
 		},
 		onSettingsChange: async (newSettings) => {
 			settings = { ...settings, ...newSettings };
@@ -295,7 +395,7 @@
 
 
 
-	// Bug #12 fix: serialise history writes to prevent read-modify-write race when
+	// serialise history writes to prevent read-modify-write race when
 	// two SSE events arrive before the first async write completes.
 	let _historyWriteChain = Promise.resolve();
 
@@ -323,7 +423,6 @@
 	}
 
 	function applyUsageUpdate(normalized, source) {
-		console.debug('[Claude Counter] Usage data received:', normalized, 'from:', source); // Bug #16
 		if (!normalized) return;
 		const now = Date.now();
 		usageState = normalized;
@@ -333,6 +432,7 @@
 		usageResetMs.five_hour = normalized.five_hour?.resets_at ? Date.parse(normalized.five_hour.resets_at) : null;
 		usageResetMs.seven_day = normalized.seven_day?.resets_at ? Date.parse(normalized.seven_day.resets_at) : null;
 		ui.setUsage(normalized);
+		ui.setStatus('usage', 'connected', 'Usage updated');
 		
 		recordUsageHistory(normalized);
 
@@ -347,12 +447,8 @@
 	async function refreshUsage() {
 		await bridgeReady;
 		lastUsageAttemptMs = Date.now();
-		const orgId = getOrgIdFromUrl() || currentOrgId || getOrgIdFromCookie();
-		if (!orgId) {
-			ui.setStatus('usage', 'stale', 'Waiting for organization');
-			return;
-		}
-		updateOrgIdIfNeeded(orgId);
+		// Cookie (lastActiveOrg) is the org claude.ai is actually using — prefer it.
+		const orgId = getOrgIdFromUrl() || getOrgIdFromCookie() || currentOrgId;
 
 		if (usageFetchInFlight) return;
 		usageFetchInFlight = true;
@@ -361,14 +457,29 @@
 		try {
 			raw = await CC.bridge.requestUsage(orgId);
 		} catch (error) {
+			ui.setStatus('usage', 'failed', error?.message || 'Usage request failed');
 			await logLocalError('usage', error, { orgId });
 			return;
 		} finally {
 			usageFetchInFlight = false;
 		}
 
-		const parsed = parseUsageFromUsageEndpoint(raw);
-		if (!parsed) ui.setStatus('usage', 'failed', 'Usage response was not recognized');
+		if (raw && raw._orgId) {
+			updateOrgIdIfNeeded(raw._orgId);
+		}
+		if (raw && raw._plan) {
+			ui.setPlan(raw._plan);
+		}
+
+		let parsed = parseUsage(raw);
+		if (!parsed) {
+			parsed = detectUsageFromDomBanner();
+		}
+
+		if (!parsed) {
+			ui.setStatus('usage', 'failed', 'Usage response was not recognized');
+			return;
+		}
 		applyUsageUpdate(parsed, 'usage');
 	}
 
@@ -397,15 +508,16 @@
 
 	let streamTokens = 0;
 	let streamStartTime = 0;
+	let lastTpsPaintMs = 0;
 
 	function handleChunk({ text }) {
-		if (!streamStartTime) streamStartTime = Date.now();
-		const count = CC.tokens.countTokens(text);
-		streamTokens += count;
-		const elapsed = (Date.now() - streamStartTime) / 1000;
-		if (elapsed > 0.2) {
-			const tps = streamTokens / elapsed;
-			ui.setLatency({ tps });
+		const now = Date.now();
+		if (!streamStartTime) streamStartTime = now;
+		streamTokens += CC.tokens.countTokens(text);
+		const elapsed = (now - streamStartTime) / 1000;
+		if (elapsed > 0.2 && now - lastTpsPaintMs >= 250) {
+			lastTpsPaintMs = now;
+			ui.setLatency({ tps: streamTokens / elapsed });
 		}
 	}
 
@@ -423,12 +535,31 @@
 
 	function handleGenerationEnd({ duration }) {
 		ui.setLatency({ duration });
+		handleMessageLimit();
+		// keep the token count current after a reply, without a second download if the page refreshed it
+		refreshConversationIfUnseen(1500);
 		streamTokens = 0;
 		streamStartTime = 0;
 	}
 
+	let lastConversationSeen = { id: null, ms: 0 };
+
+	/**
+	 * claude.ai fetches the conversation itself and the bridge already captures that copy,
+	 * so wait briefly and only download it ourselves if the page didn't.
+	 */
+	async function refreshConversationIfUnseen(delayMs) {
+		const since = Date.now();
+		const id = currentConversationId;
+		await new Promise((r) => setTimeout(r, delayMs));
+		if (!id || id !== currentConversationId) return;
+		if (lastConversationSeen.id === id && lastConversationSeen.ms >= since) return;
+		await refreshConversation();
+	}
+
 	async function handleConversationPayload({ orgId, conversationId, data }) {
 		if (!conversationId || conversationId !== currentConversationId) return;
+		lastConversationSeen = { id: conversationId, ms: Date.now() };
 		updateOrgIdIfNeeded(orgId);
 		if (!data) return;
 
@@ -442,9 +573,14 @@
 		}
 	}
 
-	function handleMessageLimit(messageLimit) {
-		const parsed = parseUsageFromMessageLimit(messageLimit);
-		applyUsageUpdate(parsed, 'sse');
+	let sseRefreshTimer = null;
+	function handleMessageLimit() {
+		lastUsageSseMs = Date.now();
+		if (sseRefreshTimer) clearTimeout(sseRefreshTimer);
+		sseRefreshTimer = setTimeout(() => {
+			sseRefreshTimer = null;
+			refreshUsage();
+		}, 1500);
 	}
 
 	CC.bridge.on('cc:generation_start', handleGenerationStart);
@@ -464,32 +600,26 @@
 			return;
 		}
 
-		// Bug #6 fix: reset stream state on every navigation so stale counters
+		// reset stream state on every navigation so stale counters
 		// from a previous conversation don't pollute t/s readings on the next one.
 		streamTokens = 0;
 		streamStartTime = 0;
 
 		// Snapshot whether we are on a chat page NOW so stale async callbacks
-		// don't attach the UI after the user has already navigated away (Bug fix: stale attach).
+		// don't attach the UI after the user has already navigated away (stale attach).
 		const navigationPath = window.location.pathname;
 
 		// Attach usage line and header independently
 		waitForElement(CC.DOM.MODEL_SELECTOR_DROPDOWN, 60000).then((el) => {
 			if (window.location.pathname !== navigationPath) return; // navigated away
 			if (el) {
-				console.log('[Claude Counter] Found model selector, attaching usage line');
 				ui.attachUsageLine();
-			} else {
-				console.log('[Claude Counter] Model selector not found after 60s (expected on non-chat pages)');
 			}
 		});
 		waitForElement(CC.DOM.CHAT_MENU_TRIGGER, 60000).then((el) => {
 			if (window.location.pathname !== navigationPath) return; // navigated away
 			if (el) {
-				console.log('[Claude Counter] Found chat menu, attaching header');
 				ui.attachHeader();
-			} else {
-				console.log('[Claude Counter] Chat menu not found after 60s (expected on non-chat pages)');
 			}
 		});
 
@@ -503,7 +633,7 @@
 		// Best-effort orgId from cookie/url.
 		updateOrgIdIfNeeded(getOrgIdFromUrl() || getOrgIdFromCookie());
 
-		await refreshConversation();
+		await refreshConversationIfUnseen(1200);
 
 		// Usage is org-level, not conversation-level.
 		if (!usageState) await refreshUsage();
@@ -564,10 +694,11 @@
 	handleUrlChange();
 
 	function tick() {
+		if (document.hidden) return; // background tab: nothing to paint, no requests
 		ui.tick();
 
 		const now = Date.now();
-		// Bug #5 fix: don't fire background API calls when the tab is hidden
+		// don't fire background API calls when the tab is hidden
 		if (!document.hidden) {
 			if (usageResetMs.five_hour && now >= usageResetMs.five_hour && rolloverHandledForResetMs.five_hour !== usageResetMs.five_hour) {
 				rolloverHandledForResetMs.five_hour = usageResetMs.five_hour;
