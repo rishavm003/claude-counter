@@ -132,11 +132,33 @@
 			if (this.usageLine) this.usageLine.classList.remove('cc-hidden');
 		}
 
+		/** True when claude.ai is showing its light theme (judged by the page's actual background). */
+		_isLightTheme() {
+			const parse = (el) => {
+				if (!el) return null;
+				const m = getComputedStyle(el).backgroundColor.match(/[\d.]+/g);
+				if (!m || m.length < 3 || (m.length >= 4 && Number(m[3]) === 0)) return null; // transparent
+				const [r, g, b] = m.map(Number);
+				return 0.2126 * r + 0.7152 * g + 0.0722 * b > 140;
+			};
+			const fromPage = parse(document.body) ?? parse(document.documentElement);
+			if (fromPage != null) return fromPage;
+			const mode = document.documentElement?.dataset?.mode;
+			if (mode === 'light' || mode === 'dark') return mode === 'light';
+			return !window.matchMedia?.('(prefers-color-scheme: dark)').matches;
+		}
+
+		applyTheme() {
+			const light = this._isLightTheme();
+			if (light !== this._light) {
+				this._light = light;
+				document.documentElement?.classList.toggle('cc-theme-light', light);
+			}
+			return light;
+		}
+
 		getProgressChrome() {
-			const root = document.documentElement;
-			const modeDark = root?.dataset?.mode === 'dark';
-			const modeLight = root?.dataset?.mode === 'light';
-			const isDark = modeDark && !modeLight;
+			const isDark = !(this._light ?? this._isLightTheme());
 
 			const themeName = this.settings.theme || 'default';
 			const theme = CC.THEMES[themeName] || CC.THEMES.default;
@@ -151,6 +173,7 @@
 		}
 
 		refreshProgressChrome() {
+			this.applyTheme();
 			const { strokeColor, fillColor, markerColor } = this.getProgressChrome();
 
 			const applyBarChrome = (bar, { fillWarn } = {}) => {
@@ -197,14 +220,32 @@
 
 
 		_observeTheme() {
-			const observer = new MutationObserver(() => this.refreshProgressChrome());
-			const start = () => observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-mode'] });
+			let queued = false;
+			const recheck = () => {
+				if (queued) return;
+				queued = true;
+				requestAnimationFrame(() => {
+					queued = false;
+					this.refreshProgressChrome();
+				});
+			};
+			const opts = { attributes: true, attributeFilter: ['data-mode', 'data-theme', 'class', 'style'] };
+			const observer = new MutationObserver(recheck);
+			const start = () => {
+				observer.observe(document.documentElement, opts);
+				if (document.body) observer.observe(document.body, opts);
+				else document.addEventListener('DOMContentLoaded', () => {
+					observer.observe(document.body, opts);
+					recheck();
+				}, { once: true });
+				recheck();
+			};
+			window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change', recheck);
 			if (document.documentElement) start();
 			else new MutationObserver((_, obs) => {
 				if (!document.documentElement) return;
 				obs.disconnect();
 				start();
-				this.refreshProgressChrome();
 			}).observe(document, { childList: true });
 		}
 
@@ -399,7 +440,9 @@
 		setStatus(kind, state, detail) {
 			if (!this.status[kind]) return;
 			this.status[kind] = { state, detail, ts: Date.now() };
-			if (kind === 'usage') this._showUsageProblem(state === 'failed' ? detail : null);
+			if (kind === 'usage') {
+				this._showUsageProblem(state === 'failed' ? detail : detail === 'Refreshing usage' ? 'loading' : null);
+			}
 			this._renderHeader();
 		}
 
@@ -407,7 +450,11 @@
 		_showUsageProblem(detail) {
 			if (!this.sessionUsageSpan || !this.weeklyUsageSpan) return;
 			if (this.sessionRawPct != null || this.weeklyRawPct != null) return;
-			if (detail) {
+			if (detail === 'loading') {
+				this.sessionUsageSpan.textContent = 'Session: loading…';
+				this.weeklyUsageSpan.textContent = 'Weekly: loading…';
+				this.usageLine.title = 'Fetching your usage from claude.ai';
+			} else if (detail) {
 				this.sessionUsageSpan.textContent = 'Session: unavailable';
 				this.weeklyUsageSpan.textContent = 'Weekly: see Status';
 				this.usageLine.title = `Usage unavailable: ${detail}`;

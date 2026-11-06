@@ -445,3 +445,56 @@
 	opacity: 0.8;
 	white-space: nowrap;
 }
+
+
+/* ── Light theme (claude.ai light mode): the extension's surfaces follow the page ── */
+.cc-theme-light .cc-header {
+	background: rgba(255, 255, 255, 0.92);
+	color: #3d3d3a;
+	border-color: rgba(0, 0, 0, 0.08);
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+.cc-theme-light .cc-usageRow {
+	background: rgba(255, 255, 255, 0.97) !important;
+	color: #3d3d3a !important;
+	border-color: rgba(0, 0, 0, 0.08);
+	box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+}
+.cc-theme-light .cc-usageText { color: #3d3d3a !important; }
+.cc-theme-light .cc-action-btn { color: #3d3d3a; }
+.cc-theme-light .cc-usage-actions { border-left-color: rgba(0, 0, 0, 0.1); }
+.cc-theme-light .cc-bar { background: rgba(0, 0, 0, 0.07); }
+.cc-theme-light .cc-status-pill { border-color: rgba(0, 0, 0, 0.12); }
+.cc-theme-light .cc-status-pill--connected,
+.cc-theme-light .cc-statusText--connected { color: #059669; }
+.cc-theme-light .cc-status-pill--stale,
+.cc-theme-light .cc-statusText--stale { color: #b45309; }
+.cc-theme-light .cc-status-pill--failed,
+.cc-theme-light .cc-statusText--failed { color: #dc2626; }
+.cc-theme-light .cc-breakdown-card {
+	background: #ffffff;
+	color: #1f1f1d;
+	border-color: rgba(0, 0, 0, 0.1);
+	box-shadow: 0 8px 28px rgba(0, 0, 0, 0.12);
+}
+.cc-theme-light .cc-settings-overlay {
+	background: #ffffff !important;
+	color: #1f1f1d !important;
+	border-color: rgba(0, 0, 0, 0.1);
+	box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18);
+}
+.cc-theme-light .cc-overlay-backdrop { background: rgba(0, 0, 0, 0.25); }
+/* panels set some colours inline for the dark look; override them in light mode */
+.cc-theme-light .cc-settings-overlay [style*="color:white"]:not(#cc-set-close),
+.cc-theme-light .cc-settings-overlay [style*="color: white"]:not(#cc-set-close) { color: #1f1f1d !important; }
+.cc-theme-light .cc-settings-overlay [style*="background:rgba(255,255,255"],
+.cc-theme-light .cc-settings-overlay [style*="background: rgba(255,255,255"] { background: rgba(0, 0, 0, 0.05) !important; }
+.cc-theme-light .cc-settings-overlay [style*="#1a1d24"] { background: #ffffff !important; color: #1f1f1d !important; }
+
+/* Panels use the accent colours too (Close button, chart bars, inputs) */
+.cc-settings-overlay,
+.cc-breakdown-card {
+	--cc-fill: linear-gradient(90deg, #3b82f6, #2563eb);
+	--cc-stroke: rgba(128, 128, 128, 0.35);
+}
+.cc-theme-light .cc-settings-overlay input[type="number"] { color: #1f1f1d !important; }

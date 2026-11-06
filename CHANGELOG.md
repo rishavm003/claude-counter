@@ -14,7 +14,8 @@ First stable release. Supported browsers: Chrome, Microsoft Edge and Brave (Chro
 - Session and weekly reset countdowns never ticked (a duplicate `tick()` overrode the real one).
 - The page bridge could load after claude.ai cached `fetch`; it now runs in the page at document start.
 - Time-to-first-token now measures the first text token, not the first network byte.
-- Buttons and header text were unreadable on claude.ai's light theme.
+- Buttons and header text were unreadable on claude.ai's light theme; the Settings Close button was invisible.
+- The bar, header pill and panels now follow claude.ai's light or dark theme automatically.
 - With no usage data the bars showed full; they now start empty, and the bar says why usage is unavailable (details in Status).
 
 ### Added
