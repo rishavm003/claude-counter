@@ -16,7 +16,7 @@
 	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 	z-index: 10002;
 	font-size: 11px;
-	color: var(--text-text-400);
+	color: #d4d4d4;
 	user-select: none;
 	transition: opacity 0.3s, left 0.3s cubic-bezier(0.4, 0, 0.2, 1); /* Smooth transition when shifting */
 }
@@ -37,6 +37,7 @@
 	margin: 4px 0;
 	width: 100%;
 	background: rgba(30, 30, 30, 0.95) !important;
+	color: #e5e5e5 !important;
 	border-radius: 12px;
 	border: 1px solid rgba(255, 255, 255, 0.1);
 	-webkit-backdrop-filter: blur(12px);
@@ -156,14 +157,14 @@
 
 .cc-action-btn {
 	cursor: pointer;
-	opacity: 0.5;
+	opacity: 0.65;
 	transition: opacity 0.2s, transform 0.1s;
 	font-size: 10px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	background: transparent;
-	color: inherit;
+	color: #e5e5e5;
 	border: 0;
 	padding: 2px 3px;
 	border-radius: 4px;

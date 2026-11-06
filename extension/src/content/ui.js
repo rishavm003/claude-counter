@@ -287,6 +287,7 @@
 			this.sessionBar.className = 'cc-bar cc-bar--usage';
 			this.sessionBarFill = document.createElement('div');
 			this.sessionBarFill.className = 'cc-bar__fill';
+			this.sessionBarFill.style.width = '0%'; // empty until real figures arrive
 			this.sessionMarker = document.createElement('div');
 			this.sessionMarker.className = 'cc-bar__marker cc-hidden';
 			this.sessionBar.appendChild(this.sessionBarFill);
@@ -304,6 +305,7 @@
 			this.weeklyBar.className = 'cc-bar cc-bar--usage';
 			this.weeklyBarFill = document.createElement('div');
 			this.weeklyBarFill.className = 'cc-bar__fill';
+			this.weeklyBarFill.style.width = '0%'; // empty until real figures arrive
 			this.weeklyMarker = document.createElement('div');
 			this.weeklyMarker.className = 'cc-bar__marker cc-hidden';
 			this.weeklyBar.appendChild(this.weeklyBarFill);
@@ -397,7 +399,23 @@
 		setStatus(kind, state, detail) {
 			if (!this.status[kind]) return;
 			this.status[kind] = { state, detail, ts: Date.now() };
+			if (kind === 'usage') this._showUsageProblem(state === 'failed' ? detail : null);
 			this._renderHeader();
+		}
+
+		/** With no figures yet, replace "--%" with a short reason (full text on hover and in Status). */
+		_showUsageProblem(detail) {
+			if (!this.sessionUsageSpan || !this.weeklyUsageSpan) return;
+			if (this.sessionRawPct != null || this.weeklyRawPct != null) return;
+			if (detail) {
+				this.sessionUsageSpan.textContent = 'Session: unavailable';
+				this.weeklyUsageSpan.textContent = 'Weekly: see Status';
+				this.usageLine.title = `Usage unavailable: ${detail}`;
+			} else {
+				this.sessionUsageSpan.textContent = 'Session: --%';
+				this.weeklyUsageSpan.textContent = 'Weekly: --%';
+				this.usageLine.title = '';
+			}
 		}
 
 		_statusSummary() {
@@ -916,6 +934,7 @@
 
 		setUsage(usage) {
 			this.refreshProgressChrome();
+			if (this.usageLine) this.usageLine.title = '';
 			const session = usage?.five_hour || null;
 			const weekly = usage?.seven_day || null;
 			if (this.usageLine) {
