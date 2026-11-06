@@ -4,7 +4,7 @@
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>Claude Counter Regression Harness</title>
-	<link rel="stylesheet" href="../extension/src/styles.css">
+	<link rel="stylesheet" href="../src/content/content.css">
 	<style>
 		body { font-family: system-ui, sans-serif; padding: 24px; background: #111; color: #eee; }
 		.ChatInput { max-width: 760px; margin-top: 24px; padding: 16px; border: 1px solid #444; }
@@ -24,8 +24,9 @@
 	<pre id="results"></pre>
 
 	<script>
-		location.hash = '/chat/mock-conversation';
+		// Serve over HTTP (see tests/run-regression.js); replaceState fails on file:// URLs.
 		history.replaceState(null, '', '/chat/mock-conversation');
+		document.cookie = 'lastActiveOrg=org-chat; path=/';
 
 		const storage = {};
 		globalThis.chrome = {
@@ -43,23 +44,32 @@
 			},
 			runtime: {
 				onMessage: { addListener() {} },
-				getURL(path) { return `../extension/${path}`; }
+				getURL(path) { return `../${path}`; }
 			}
 		};
 	</script>
-	<script src="../extension/src/content/constants.js"></script>
-	<script src="../extension/src/content/bridge-client.js"></script>
-	<script src="../extension/src/content/tokens.js"></script>
-	<script src="../extension/src/content/ui.js"></script>
+	<script src="../src/content/constants.js"></script>
+	<script src="../src/content/bridge-client.js"></script>
+	<script src="../src/content/tokens.js"></script>
+	<script src="../src/content/ui.js"></script>
 	<script>
 		const CC = globalThis.ClaudeCounter;
 		CC.injectBridgeOnce = () => Promise.resolve(true);
 		CC.bridge.requestUsage = async () => ({
-			five_hour: { utilization: 42.4, resets_at: new Date(Date.now() + 3600000).toISOString() },
-			seven_day: { utilization: 12.5, resets_at: new Date(Date.now() + 86400000).toISOString() }
+			five_hour: { utilization: 6, resets_at: new Date(Date.now() + 3600000).toISOString() },
+			seven_day: { utilization: 1, resets_at: new Date(Date.now() + 86400000).toISOString() },
+			seven_day_opus: null,
+			extra_usage: { is_enabled: false },
+			limits: [
+				{ kind: 'session', group: 'session', percent: 6, resets_at: new Date(Date.now() + 3600000).toISOString() },
+				{ kind: 'weekly_all', group: 'weekly', percent: 1, resets_at: new Date(Date.now() + 86400000).toISOString() }
+			],
+			_orgId: 'org-chat',
+			_plan: { name: 'Pro', tier: 'default_claude_ai', capabilities: ['chat', 'claude_pro'] }
 		});
 		CC.bridge.requestConversation = async () => {
 			const payload = {
+				model: 'claude-opus-5-5',
 				current_leaf_message_uuid: 'msg-assistant',
 				chat_messages: [
 					{ uuid: 'msg-user', sender: 'user', parent_message_uuid: '00000000-0000-4000-8000-000000000000', content: [{ type: 'text', text: 'hello world' }] },
@@ -71,20 +81,35 @@
 		};
 		CC.bridge.requestHash = async (text) => ({ hash: String(text.length).padStart(16, '0') });
 	</script>
-	<script src="../extension/src/content/main.js"></script>
+	<script src="../src/content/main.js"></script>
 	<script>
 		setTimeout(() => {
+			const usageText = document.querySelector('.cc-usageRow')?.textContent || '';
+			const sessionAt = (ms) => document.querySelector('.cc-usageText')?.textContent || '';
 			const checks = [
+				['weekly 1% shown as 1.0% (not 100%)', /Weekly: 1\.0%/.test(usageText)],
+				['session 6% shown as 6.0%', /Session: 6\.0%/.test(usageText)],
+				['Pro plan badge shown', document.querySelector('.cc-plan-badge')?.textContent === 'Pro'],
+				['token estimate shown', /~\d+ tokens/.test(document.querySelector('.cc-header')?.textContent || '')],
+				['single tick() method', (CC.ui.CounterUI.prototype.tick.toString().match(/sessionRawPct/) || []).length > 0],
 				['usage row attached', !!document.querySelector('.cc-usageRow')],
 				['header attached', !!document.querySelector('.cc-header')],
 				['status pill rendered', !!document.querySelector('.cc-status-pill')],
 				['settings/action buttons keyboardable', [...document.querySelectorAll('.cc-action-btn')].every((b) => b.tagName === 'BUTTON')],
-				['message badge injected', !!document.querySelector('.cc-message-badge')]
+				['message badge injected', !!document.querySelector('.cc-message-badge')],
+				['Free plan shows no badge', (() => {
+					const probe = new CC.ui.CounterUI();
+					probe.initialize();
+					probe.setPlan({ name: 'Free' });
+					const hiddenFree = probe.planBadge.classList.contains('cc-hidden');
+					probe.setPlan({ name: 'Max 5x' });
+					return hiddenFree && !probe.planBadge.classList.contains('cc-hidden') && probe.planBadge.textContent === 'Max 5x';
+				})()]
 			];
 			const failed = checks.filter(([, ok]) => !ok);
 			document.getElementById('results').textContent = checks.map(([name, ok]) => `${ok ? 'PASS' : 'FAIL'} ${name}`).join('\n');
 			document.body.dataset.regressionStatus = failed.length ? 'failed' : 'passed';
-		}, 1200);
+		}, 1600);
 	</script>
 </body>
 </html>

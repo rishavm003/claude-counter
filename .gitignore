@@ -14,9 +14,6 @@ npm-debug.log*
 # Build outputs
 dist/
 
-# Gemini/Antigravity Artifacts
+# Local tooling
 .gemini
-TECHNICAL_DOCUMENTATION.md.tmp
-walkthrough.md
-task.md
-implementation_plan.md
+node_modules/
