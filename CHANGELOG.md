@@ -20,6 +20,8 @@ First stable release. Supported browsers: Chrome, Microsoft Edge and Brave (Chro
 
 ### Added
 - Plan badge for paid plans (Pro, Max 5x, Max 20x, Team/Enterprise; hidden on Free), Max per-model weekly caps, extra-usage credits, weekly usage by product.
+- Appearance setting: Auto (match claude.ai), Light or Dark; "Color Theme Preset" renamed Accent Colour.
+- Settings sync across PCs with the browser account (Chrome/Edge/Brave sync), applied live in every tab.
 - Model-aware context window and API-equivalent cost (clearly labelled as an estimate).
 - Breakdown card lists what the token estimate does not include.
 

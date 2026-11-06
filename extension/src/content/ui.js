@@ -149,7 +149,8 @@
 		}
 
 		applyTheme() {
-			const light = this._isLightTheme();
+			const pref = this.settings.appearance || 'auto';
+			const light = pref === 'light' ? true : pref === 'dark' ? false : this._isLightTheme();
 			if (light !== this._light) {
 				this._light = light;
 				document.documentElement?.classList.toggle('cc-theme-light', light);
@@ -699,6 +700,7 @@
 		showSettings() {
 			if (document.querySelector('.cc-settings-overlay:not(.cc-dashboard-overlay)')) return;
 			const themeName = this.settings.theme || 'default';
+			const appearance = this.settings.appearance || 'auto';
 			const { overlay, close } = this._makeModal('Settings');
 			overlay.innerHTML = `
 				<h3>Settings</h3>
@@ -715,7 +717,15 @@
 					<input type="number" id="cc-set-limit" style="width:80px; background:rgba(255,255,255,0.05); color:white; border:1px solid var(--cc-stroke); border-radius:4px; padding:2px 4px; font-size:11px" value="${this.settings.manualLimit || this._detectContextLimit()}">
 				</div>
 				<div class="cc-settings-field">
-					<span>Color Theme Preset</span>
+					<span>Appearance</span>
+					<select id="cc-set-appearance" style="background:rgba(255,255,255,0.05); color:white; border:1px solid var(--cc-stroke); border-radius:4px; padding:2px 4px; font-size:11px; outline:none; cursor:pointer">
+						<option value="auto" style="background:#1a1d24; color:white" ${appearance === 'auto' ? 'selected' : ''}>Auto (match claude.ai)</option>
+						<option value="light" style="background:#1a1d24; color:white" ${appearance === 'light' ? 'selected' : ''}>Light</option>
+						<option value="dark" style="background:#1a1d24; color:white" ${appearance === 'dark' ? 'selected' : ''}>Dark</option>
+					</select>
+				</div>
+				<div class="cc-settings-field">
+					<span>Accent Colour</span>
 					<select id="cc-set-theme" style="background:rgba(255,255,255,0.05); color:white; border:1px solid var(--cc-stroke); border-radius:4px; padding:2px 4px; font-size:11px; outline:none; cursor:pointer">
 						<option value="default" style="background:#1a1d24; color:white" ${themeName === 'default' ? 'selected' : ''}>Default Blue</option>
 						<option value="sunset" style="background:#1a1d24; color:white" ${themeName === 'sunset' ? 'selected' : ''}>Sunset Red</option>
@@ -750,6 +760,10 @@
 
 			overlay.querySelector('#cc-set-limit').onchange = (e) => {
 				this.onSettingsChange({ manualLimit: parseInt(e.target.value) || 0 });
+			};
+
+			overlay.querySelector('#cc-set-appearance').onchange = (e) => {
+				this.onSettingsChange({ appearance: e.target.value });
 			};
 
 			overlay.querySelector('#cc-set-theme').onchange = (e) => {

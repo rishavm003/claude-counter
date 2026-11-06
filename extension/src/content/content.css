@@ -498,3 +498,7 @@
 	--cc-stroke: rgba(128, 128, 128, 0.35);
 }
 .cc-theme-light .cc-settings-overlay input[type="number"] { color: #1f1f1d !important; }
+
+/* Dark (default) surfaces set their own text colour so they never inherit the page's */
+.cc-settings-overlay { color: #e5e5e5; }
+.cc-breakdown-card { background: #1f1f1e; color: #e5e5e5; }

@@ -295,10 +295,46 @@
 		userHidden: false
 	};
 
+	// Settings live in storage.sync so they follow the browser account to every PC
+	// (falls back to local storage when sync is unavailable or turned off).
+	async function readSettings() {
+		try {
+			const synced = await chrome.storage.sync.get(['settings']);
+			if (synced?.settings) return synced.settings;
+		} catch {
+			// sync unavailable
+		}
+		const local = await chrome.storage.local.get(['settings']);
+		if (local.settings) {
+			try {
+				await chrome.storage.sync.set({ settings: local.settings }); // one-time move to sync
+			} catch {
+				// keep local copy
+			}
+		}
+		return local.settings;
+	}
+
+	async function writeSettings(value) {
+		try {
+			await chrome.storage.sync.set({ settings: value });
+		} catch {
+			await chrome.storage.local.set({ settings: value });
+		}
+	}
+
+	// A change made in another tab, or on another PC through sync, applies here immediately.
+	chrome.storage.onChanged?.addListener((changes) => {
+		const next = changes.settings?.newValue;
+		if (!next || typeof next !== 'object') return;
+		settings = { ...settings, ...next };
+		ui.applySettings(settings);
+	});
+
 	chrome.runtime.onMessage.addListener((message) => {
 		if (message.type === 'cc:toggle_visibility') {
 			settings.userHidden = !settings.userHidden;
-			chrome.storage.local.set({ settings });
+			writeSettings(settings);
 			ui.applySettings(settings);
 		}
 	});
@@ -312,7 +348,7 @@
 		},
 		onSettingsChange: async (newSettings) => {
 			settings = { ...settings, ...newSettings };
-			await chrome.storage.local.set({ settings });
+			await writeSettings(settings);
 			ui.applySettings(settings);
 		},
 		onHistoryRequest: async () => {
@@ -320,9 +356,9 @@
 			return res.usageHistory || [];
 		},
 		onDataRequest: async () => {
-			const res = await chrome.storage.local.get(['settings', 'usageHistory', 'errorLog']);
+			const res = await chrome.storage.local.get(['usageHistory', 'errorLog']);
 			return {
-				settings: res.settings || {},
+				settings: (await readSettings()) || {},
 				usageHistory: res.usageHistory || [],
 				errorLog: res.errorLog || []
 			};
@@ -347,6 +383,10 @@
 			}
 			if (Array.isArray(payload?.usageHistory)) next.usageHistory = payload.usageHistory.slice(-3000);
 			if (Array.isArray(payload?.errorLog)) next.errorLog = payload.errorLog.slice(-200);
+			if (next.settings) {
+				await writeSettings(next.settings);
+				delete next.settings;
+			}
 			await chrome.storage.local.set(next);
 			ui.applySettings(settings);
 			ui.setStatus('usage', usageState ? 'connected' : 'stale', 'Data imported');
@@ -361,9 +401,9 @@
 	});
 
 	async function loadSettings() {
-		const res = await chrome.storage.local.get(['settings']);
-		if (res.settings) {
-			settings = { ...settings, ...res.settings };
+		const saved = await readSettings();
+		if (saved) {
+			settings = { ...settings, ...saved };
 		}
 		ui.applySettings(settings);
 		ui.showOnboardingIfNeeded(settings);

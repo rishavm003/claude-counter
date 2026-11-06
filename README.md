@@ -21,7 +21,16 @@ A lightweight extension for **Chrome, Microsoft Edge and Brave** that shows your
 2. Open `chrome://extensions` (Chrome), `edge://extensions` (Edge) or `brave://extensions` (Brave).
 3. Turn on **Developer mode**, click **Load unpacked**, and pick the unzipped folder.
 
-Requires Chrome / Edge / Brave 111 or newer. Toggle the overlay with **Alt+Shift+C**.
+Requires Chrome / Edge / Brave 111 or newer. Toggle the overlay with **Alt+Shift+C**. Choose **Appearance** (Auto / Light / Dark) and **Accent Colour** under Settings.
+
+## Using it on another PC
+
+Nothing in the extension is tied to a machine, account or folder path: it finds your claude.ai organization and plan by itself.
+
+- **Install from a release ZIP**, not the repository: unzip `claude-counter-<version>.zip` and choose that folder in **Load unpacked**. When loading from the repository, choose the `extension` folder (the one containing `manifest.json`), not the project root.
+- **Settings follow you.** They are stored with your browser account (Chrome/Edge/Brave sync), so the same appearance, accent colour and options appear on every PC where you're signed in to the browser with sync on.
+- **Usage history and the error log stay on each PC** (they are too large for sync). Use **Settings → Export / Import Data** to carry them over.
+- **For one-click installs and automatic updates**, publish to the Chrome Web Store (works for Chrome and Brave) and Microsoft Edge Add-ons; then every PC installs it from the store with no files to copy.
 
 ## Performance
 
