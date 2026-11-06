@@ -9,7 +9,7 @@ try {
 }
 
 async function main() {
-	const root = path.resolve(__dirname, '..'); // repository root (serves tests/ and extension/)
+	const root = path.resolve(__dirname, '..'); // repository root (serves tests/ and src/)
 	const htmlPath = path.join(root, 'tests', 'regression.html');
 	if (!fs.existsSync(htmlPath)) {
 		throw new Error(`Regression harness not found: ${htmlPath}`);

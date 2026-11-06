@@ -21,8 +21,7 @@ jobs:
 
       - name: Create extension ZIP (Chrome / Edge / Brave)
         run: |
-          cd extension
-          zip -r ../claude-counter-${GITHUB_REF_NAME#v}.zip .
+          zip -r claude-counter-${GITHUB_REF_NAME#v}.zip manifest.json src icons
 
       - name: Create release
         uses: softprops/action-gh-release@v1

@@ -4,7 +4,7 @@
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>Claude Counter Regression Harness</title>
-	<link rel="stylesheet" href="../extension/src/content/content.css">
+	<link rel="stylesheet" href="../src/content/content.css">
 	<style>
 		body { font-family: system-ui, sans-serif; padding: 24px; background: #111; color: #eee; }
 		.ChatInput { max-width: 760px; margin-top: 24px; padding: 16px; border: 1px solid #444; }
@@ -44,14 +44,14 @@
 			},
 			runtime: {
 				onMessage: { addListener() {} },
-				getURL(path) { return `../extension/${path}`; }
+				getURL(path) { return `../${path}`; }
 			}
 		};
 	</script>
-	<script src="../extension/src/content/constants.js"></script>
-	<script src="../extension/src/content/bridge-client.js"></script>
-	<script src="../extension/src/content/tokens.js"></script>
-	<script src="../extension/src/content/ui.js"></script>
+	<script src="../src/content/constants.js"></script>
+	<script src="../src/content/bridge-client.js"></script>
+	<script src="../src/content/tokens.js"></script>
+	<script src="../src/content/ui.js"></script>
 	<script>
 		const CC = globalThis.ClaudeCounter;
 		CC.injectBridgeOnce = () => Promise.resolve(true);
@@ -81,7 +81,7 @@
 		};
 		CC.bridge.requestHash = async (text) => ({ hash: String(text.length).padStart(16, '0') });
 	</script>
-	<script src="../extension/src/content/main.js"></script>
+	<script src="../src/content/main.js"></script>
 	<script>
 		setTimeout(() => {
 			const usageText = document.querySelector('.cc-usageRow')?.textContent || '';

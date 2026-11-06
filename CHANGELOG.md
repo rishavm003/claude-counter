@@ -28,7 +28,7 @@ First stable release. Supported browsers: Chrome, Microsoft Edge and Brave (Chro
 ### Changed
 - Much lower overhead while Claude is typing: page updates are batched (≤ one pass per 200 ms), no work in background tabs, and the conversation claude.ai already downloaded is reused.
 - Usage refreshes from the authoritative endpoint after each reply.
-- Project restructured: `extension/icons`, `src/background`, `src/page`, `src/content`; `LICENSE` at the root; `package.json`, `CHANGELOG.md`, `.editorconfig`.
+- Project restructured: `manifest.json` at the repository root (load the project folder directly), `icons/`, `src/background`, `src/page`, `src/content`; `LICENSE` at the root; `package.json`, `CHANGELOG.md`, `.editorconfig`.
 
 ### Removed
 - Firefox build, userscript build, stale `dist/` artifacts, duplicate root `assets/`, unused hashing code and verbose console logging.
